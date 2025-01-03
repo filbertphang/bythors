@@ -1,4 +1,4 @@
-use crate::marshal::mode::lean_dec_cond;
+use crate::marshal::core::lean_dec_cond;
 use crate::marshal::string::{lean_string_to_rust, rust_string_to_lean};
 use crate::protocol::lean_extern::create_message;
 use lean_sys::*;

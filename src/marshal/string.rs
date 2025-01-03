@@ -1,4 +1,4 @@
-use crate::marshal::mode::lean_dec_cond;
+use crate::marshal::core::lean_dec_cond;
 use lean_sys::*;
 
 // TODO: is there a better way that transfers ownership from rust to lean
