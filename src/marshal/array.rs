@@ -13,7 +13,7 @@ pub unsafe fn index_lean_array(arr: *mut lean_object, idx: usize) -> *mut lean_o
 
 pub unsafe fn rust_vec_to_lean_array<T>(
     vec: Vec<T>,
-    convert: fn(T) -> *mut lean_object,
+    convert: unsafe fn(T) -> *mut lean_object,
 ) -> *mut lean_object {
     // this is for creating lean arrays of primitives (USize, UInt_32, etc).
     // for lean arrays of non-primitives, see impl in `rust_string_vec_to_lean_array` below.
