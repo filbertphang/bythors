@@ -47,10 +47,6 @@ def create_message (tag: USize) (originator: ConcreteAddress) (r: ConcreteRound)
   | 2 => Message.VoteMsg originator r v
   | _ => sorry
 
-@[export create_packet]
-def create_packet (src: ConcreteAddress) (dst: ConcreteAddress) (msg: ConcreteRBMessage) (consumed: Bool) : ConcreteRBPacket :=
-  {src := src, dst := dst, msg := msg, consumed := consumed}
-
 @[export init_node_state]
 def init_node_state (p: ConcreteRBProtocol) (node_address: ConcreteAddress) : ConcreteRBState :=
   p.localInit node_address
@@ -64,13 +60,6 @@ def send_message (p: ConcreteRBProtocol) (node_state: ConcreteRBState) (round: C
 def handle_message (p: ConcreteRBProtocol) (node_state: ConcreteRBState) (src: ConcreteAddress) (msg: ConcreteRBMessage) : ConcreteRBState × Array ConcreteRBPacket :=
   let (new_state, packet_list) := p.procMessage node_state src msg
   (new_state, List.toArray packet_list)
-
--- TODO: remove ConcreteValueOption
--- used this to debug why the result of `check_output` would segfault in rust,
--- but still couldn't figure out why :-(
-inductive ConcreteValueOption :=
-  | None : ConcreteValueOption
-  | Some : ConcreteValue → ConcreteValueOption
 
 @[export check_output]
 def check_output (node_state: ConcreteRBState) (leader: ConcreteAddress) (round: ConcreteRound) : ConcreteValueOption :=

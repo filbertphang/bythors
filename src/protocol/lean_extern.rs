@@ -18,14 +18,6 @@ extern "C" {
     pub fn initialize_ReliableBroadcastConcrete(builtin: u8, world: lean_obj_arg) -> lean_obj_res;
 
     pub fn create_protocol(node_arr: lean_obj_arg) -> lean_obj_res;
-    // TODO: remove if unused
-    #[allow(dead_code)]
-    pub fn create_packet(
-        src: lean_obj_arg,
-        dst: lean_obj_arg,
-        msg: lean_obj_arg,
-        consumed: u8,
-    ) -> lean_obj_res;
 
     pub fn create_message(
         tag: usize,
