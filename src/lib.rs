@@ -1,3 +1,3 @@
 mod global_tbl;
 mod marshal;
-mod protocol;
+pub mod protocol;
