@@ -17,20 +17,34 @@ pub fn initialize() {
         .expect("should be able to initialize global message table");
 }
 
-#[no_mangle]
-pub unsafe extern "C" fn get_node_value(node_address: *mut lean_object) -> *mut lean_object {
-    let ht = GLOBAL_MESSAGE_HASHTBL
+pub fn insert(address: String, message: String) {
+    let mut ht = GLOBAL_MESSAGE_HASHTBL
         .get()
-        .expect("global message hashtbl should be initialized")
+        .expect("expected global message db to be initialized")
         .lock()
         .unwrap();
 
+    ht.insert(address, message);
+
+    // note: no need to manually release the mutex on `ht`, since it will
+    // go out of scope once the function returns.
+}
+
+pub fn get(address: String) -> String {
+    let ht = GLOBAL_MESSAGE_HASHTBL
+        .get()
+        .expect("expected global message db to be initialized")
+        .lock()
+        .unwrap();
+
+    ht.get(&address)
+        .expect("expected an entry for the given address")
+        .clone()
+}
+
+#[no_mangle]
+pub unsafe extern "C" fn get_node_value(node_address: *mut lean_object) -> *mut lean_object {
     let node_address_rust = lean_string_to_rust(node_address, true);
-
-    let message_rust = ht
-        .get(&node_address_rust)
-        .expect("node should always have a message")
-        .clone();
-
+    let message_rust = get(node_address_rust);
     rust_string_to_lean(message_rust)
 }
