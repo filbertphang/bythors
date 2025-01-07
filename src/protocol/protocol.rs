@@ -7,6 +7,8 @@ use crate::protocol::message::Message;
 use crate::protocol::packet::Packet;
 use lean_sys::*;
 
+pub use crate::protocol::lean_extern::initialize_ReliableBroadcastConcrete;
+
 #[derive(Debug)]
 pub struct Protocol {
     pub protocol: *mut lean_object,
