@@ -1,11 +1,14 @@
 use core::error::Error;
 use futures::StreamExt;
+use std::str::FromStr;
 use std::time::Duration;
 use tokio::select;
 use tokio::sync::mpsc;
 
 use crate::marshal::initialization::initialize_lean_environment;
 use crate::network_driver::behaviour::{ProtocolBehaviour, ProtocolBehaviourEvent};
+use crate::network_driver::request_response::{ProtocolRequest, ProtocolResponse};
+use crate::protocol::packet::Packet;
 use crate::protocol::protocol::{initialize_ReliableBroadcastConcrete, Protocol};
 use libp2p::identity::Keypair;
 use libp2p::request_response::{ProtocolSupport, ResponseChannel};
@@ -86,9 +89,8 @@ impl Network {
         loop {
             select! {
                     // handle a client broadcast
-                    Some(broadcast_msg) = self.receiver.recv() => {
-                        // TODO: broadcast message
-                        self.broadcast();
+                    Some(message) = self.receiver.recv() => {
+                        self.broadcast(message);
                     }
 
                     // handle a swarm event (poll the swarm)
@@ -126,7 +128,7 @@ impl Network {
                             },
                         )) => {
                             // TODO: handle request
-                            self.handle_request();
+                            self.handle_request(request, channel);
                         }
 
                         // Request-Response: received a response
@@ -154,15 +156,69 @@ impl Network {
         }
     }
 
-    fn broadcast(&mut self) {
-        // nyi
+    fn get_address(&self) -> String {
+        self.swarm.local_peer_id().to_string()
     }
 
-    fn handle_request(&mut self) {
-        // nyi
+    /// Handles a broadcast from the client.
+    /// Begins a new round of consensus, starting with the clinet-supplied message.
+    fn broadcast(&mut self, message: String) {
+        let packets = unsafe { self.protocol.send_message(self.get_address(), message) };
+        self.transmit(packets);
+    }
+
+    fn handle_request(
+        &mut self,
+        request: ProtocolRequest,
+        channel: ResponseChannel<ProtocolResponse>,
+    ) {
+        // acknowledge the packet
+        self.swarm
+            .behaviour_mut()
+            .request_response
+            .send_response(channel, ProtocolResponse::Ack)
+            .expect("should be able to ack a request");
+
+        let packets_to_send = unsafe { self.protocol.handle_packet(request.packet) };
+        self.transmit(packets_to_send);
     }
 
     fn handle_response(&mut self) {
-        // nyi
+        // TODO: implement a proper handling mechanism
+        // currently, responses are just acknowledgements (`ProtocolResponse::Ack`) of requests,
+        // so we don't really need to do anything with it.
+    }
+
+    /// Transmits a packet to all other nodes.
+    fn transmit(&mut self, packets: Vec<Packet>) {
+        packets
+            .into_iter()
+            .for_each(|packet| self.send_individual_packet(packet));
+    }
+
+    fn send_individual_packet(&mut self, packet: Packet) {
+        let src_id =
+            PeerId::from_str(packet.src.as_str()).expect("expected well-formed source address");
+        let dst_id = PeerId::from_str(packet.dst.as_str())
+            .expect("expected well-formed destination address");
+
+        match src_id == dst_id {
+            false => {
+                // sending packet to external node
+                self.swarm
+                    .behaviour_mut()
+                    .request_response
+                    .send_request(&dst_id, ProtocolRequest { packet });
+            }
+            true => {
+                // simulate sending packet to self.
+                // libp2p does not allow nodes to send packets to themselves, so we simulate
+                // this behaviour by manually calling the packet handler.
+                let packets_to_send = unsafe { self.protocol.handle_packet(packet) };
+                self.transmit(packets_to_send);
+
+                // TODO: check consensus output here (why here?)
+            }
+        }
     }
 }

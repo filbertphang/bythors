@@ -83,6 +83,8 @@ impl Protocol {
         (new_state, packets_to_send)
     }
 
+    /// Starts a new round of consensus with a given message.
+    /// Sends the message to all other nodes.
     pub unsafe fn send_message(&mut self, address: String, message: String) -> Vec<Packet> {
         // add the current message to the global message table
         global_tbl::insert(address, message);
@@ -110,6 +112,11 @@ impl Protocol {
     }
 
     pub unsafe fn handle_packet(&mut self, packet: Packet) -> Vec<Packet> {
+        // debug print
+        println!("received packet:");
+        dbg!(&packet);
+        println!("");
+
         let src_lean = rust_string_to_lean(packet.src);
         let msg_lean = Message::to_lean(packet.msg);
 
