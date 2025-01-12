@@ -62,9 +62,8 @@ def handle_message (p: ConcreteRBProtocol) (node_state: ConcreteRBState) (src: C
   (new_state, List.toArray packet_list)
 
 @[export check_output]
-def check_output (node_state: ConcreteRBState) (leader: ConcreteAddress) (round: ConcreteRound) : ConcreteValueOption :=
+def check_output (node_state: ConcreteRBState) (leader: ConcreteAddress) (round: ConcreteRound) : Option ConcreteValue :=
   let out := node_state.output (leader, round)
-  let out := dbg_print' (out, s!"(check_output) Consensus for round {round}: {out}")
   match out with
-  | [] => ConcreteValueOption.None
-  | o :: _ => ConcreteValueOption.Some o
+  | [] => none
+  | o :: _ => some o

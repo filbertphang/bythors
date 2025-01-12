@@ -6,15 +6,6 @@ import LeanSts.BFT.Network
 
 -- set_option trace.compiler.ir.rc true
 
--- debug function to help me print stuff from lean without going through the IO monad
--- very illegal, but it gets the job done.
-@[extern "dbg_print_rust"]
-opaque dbg_print_rust : String → USize
-
-def dbg_print' {T : Type} (tu : T × String) : T :=
-  let tu' := tu.map id dbg_print_rust
-  tu'.fst
-
 section ReliableBroadcast
 variable {Address Round Value : Type}
 variable [dec_addr : DecidableEq Address] [dec_round : DecidableEq Round] [dec_value : DecidableEq Value]
@@ -130,18 +121,14 @@ def checkVoteCondition (st : RBState) (msg : RBMessage) : Bool :=
   | _ => false
 
 def updateVotedByMessage (st : RBState) (msg : RBMessage) : RBState × List RBPacket :=
-  let st := dbg_print' (st, s!"(updatedVotedByMessage): called")
   match msg with
   | Message.EchoMsg q r v | Message.VoteMsg q r v =>
-    let st := dbg_print' (st, s!"(updatedVotedByMessage): echo or vote case")
     ({st with voted := st.voted[(q, r) ↦ some v]}, Packet.broadcast st.id st.allNodes (Message.VoteMsg q r v))
   | _ => (st, [])
 
 def tryUpdateOutputByMessage (st : RBState) (msg : RBMessage) : RBState :=
-  let st := dbg_print' (st, s!"(tryUpdateOutputByMessage): called")
   if let Message.VoteMsg q r v := msg then
     if thresVote4Output st ≤ List.length (st.msgReceivedFrom msg) then
-      let st := dbg_print' (st, s!"(tryUpdateOutputByMessage): if case")
       let l := st.output (q, r)
       {st with output := st.output[(q, r) ↦ l.insert v]}
     else
@@ -156,12 +143,10 @@ def routineCheck (st : RBState) (msg : RBMessage) : RBState × List RBPacket :=
   -- (st'', pkts)
   -- Need to make the if be the outermost thing?
   if checkVoteCondition st msg then
-    let st := dbg_print' (st, s!"(routineCheck): if case")
     let (st', pkts) := updateVotedByMessage st msg
     let st'' := tryUpdateOutputByMessage st' msg
     (st'', pkts)
   else
-    let st := dbg_print' (st, s!"(routineCheck): else case")
     let st'' := tryUpdateOutputByMessage st msg
     (st'', [])
 
@@ -173,10 +158,8 @@ def procMsg (st : @NodeState Address Round Value) (src : Address) (msg : @Messag
     | Message.InitialMsg _ _ =>
       (st', pkts)
     | _ =>
-      let st' := dbg_print' (st', s!"(procMsg): calling routinecheck")
       let (st'', pkts') := routineCheck st' msg
-      let pp := dbg_print' (pkts ++ pkts', s!"(procMsg): returned from routinecheck")
-      (st'', pp)
+      (st'', pkts')
   | none =>
       (st, [])
 
