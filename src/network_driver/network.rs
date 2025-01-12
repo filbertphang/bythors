@@ -1,5 +1,6 @@
 use core::error::Error;
 use futures::StreamExt;
+use log::info;
 use std::str::FromStr;
 use std::time::Duration;
 use tokio::select;
@@ -11,27 +12,29 @@ use crate::network_driver::request_response::{ProtocolRequest, ProtocolResponse}
 use crate::protocol::packet::Packet;
 use crate::protocol::protocol::{initialize_ReliableBroadcastConcrete, Protocol};
 use libp2p::identity::Keypair;
-use libp2p::request_response::{ProtocolSupport, ResponseChannel};
-use libp2p::swarm::{NetworkBehaviour, SwarmEvent};
-use libp2p::{mdns, request_response, PeerId, StreamProtocol, Swarm};
+use libp2p::request_response::ResponseChannel;
+use libp2p::swarm::SwarmEvent;
+use libp2p::{mdns, request_response, PeerId, Swarm};
 
-struct Network {
+pub struct Network {
     swarm: Swarm<ProtocolBehaviour>,
     protocol: Protocol,
     receiver: mpsc::UnboundedReceiver<String>,
     // TODO: refine the type of the callback.
     // this will probably capture some part of the client application's environment, so we might
     // have to use `Fn` or `FnMut` instead of `fn`.
+    // TODO: use the callback for something
     callback: fn(String) -> (),
 }
 
 impl Network {
     pub fn initialize(
         identity: Keypair,
-        other_peer_ids: Vec<&PeerId>,
+        all_peer_ids: &Vec<PeerId>,
         leader_peer_id: &PeerId,
         callback: fn(String) -> (),
-    ) -> Result<(Self, mpsc::UnboundedSender<String>), Box<dyn Error>> {
+        receiver: mpsc::UnboundedReceiver<String>,
+    ) -> Result<(Self), Box<dyn Error>> {
         // for diagnostics
         // tracing_subscriber::fmt()
         //     .with_env_filter(EnvFilter::from_default_env())
@@ -51,17 +54,13 @@ impl Network {
             })
             .build();
 
-        // set up communication channel between client and network
-        let (sender, receiver) = mpsc::unbounded_channel::<String>();
-
         // construct list of all peers, including self
         let self_id = swarm.local_peer_id().to_string();
         let leader_id = leader_peer_id.to_string();
-        let mut all_peers: Vec<String> = other_peer_ids
+        let mut all_peers: Vec<String> = all_peer_ids
             .iter()
             .map(|peer_id| peer_id.to_string())
             .collect();
-        all_peers.push(self_id.clone());
 
         let protocol = unsafe {
             // initialize lean environment
@@ -71,6 +70,9 @@ impl Network {
             Protocol::create(all_peers, self_id, leader_id)
         };
 
+        // Tell the swarm to listen on all interfaces and a random, OS-assigned port.
+        swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+
         // construct network
         let network = Self {
             swarm,
@@ -79,81 +81,78 @@ impl Network {
             callback,
         };
 
-        Ok((network, sender))
+        Ok(network)
     }
 
-    pub async fn start(&mut self) -> Result<(), Box<dyn Error>> {
-        // Tell the swarm to listen on all interfaces and a random, OS-assigned port.
-        self.swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
+    pub async fn poll(&mut self) -> Result<(), Box<dyn Error>> {
+        select! {
+            // handle a client broadcast
+            Some(message) = self.receiver.recv() => {
+                info!("broadcasting message");
+                self.broadcast(message);
+            }
 
-        loop {
-            select! {
-                    // handle a client broadcast
-                    Some(message) = self.receiver.recv() => {
-                        self.broadcast(message);
+            // handle a swarm event (poll the swarm)
+            event = self.swarm.select_next_some() => match event {
+                SwarmEvent::NewListenAddr { address, .. } => println!("Listening on {address:?}"),
+
+                // MDNS: new peer discovered
+                SwarmEvent::Behaviour(ProtocolBehaviourEvent::Mdns(
+                    mdns::Event::Discovered(list),
+                )) => {
+                    info!("new peer(s) discovered");
+                    for (peer_id, _multiaddr) in list {
+                        self.swarm.dial(peer_id)?;
                     }
+                }
 
-                    // handle a swarm event (poll the swarm)
-                    event = self.swarm.select_next_some() => match event {
-                        SwarmEvent::NewListenAddr { address, .. } => println!("Listening on {address:?}"),
-
-                        // MDNS: new peer discovered
-                        SwarmEvent::Behaviour(ProtocolBehaviourEvent::Mdns(
-                            mdns::Event::Discovered(list),
-                        )) => {
-                            for (peer_id, _multiaddr) in list {
-                                self.swarm.dial(peer_id)?;
-                            }
-                        }
-
-                        // MDNS: peer expired
-                        SwarmEvent::Behaviour(ProtocolBehaviourEvent::Mdns(
-                            mdns::Event::Expired(list),
-                        )) => {
-                            for (peer_id, _multiaddr) in list {
-                                // TODO: determine what happens to the protocol when a peer expires and re-connects.
-                            }
-                        }
-
-                        // Request-Response: received a request
-                        SwarmEvent::Behaviour(ProtocolBehaviourEvent::RequestResponse(
-                            request_response::Event::Message {
-                                message:
-                                    request_response::Message::Request {
-                                        request,
-                                        channel,
-                                        ..
-                                    },
-                                    ..
-                            },
-                        )) => {
-                            // TODO: handle request
-                            self.handle_request(request, channel);
-                        }
-
-                        // Request-Response: received a response
-                        SwarmEvent::Behaviour(ProtocolBehaviourEvent::RequestResponse(
-                            request_response::Event::Message {
-                                peer,
-                                message:
-                                    request_response::Message::Response {
-                                        request_id: _,
-                                        response,
-                                    },
-                            },
-                        )) => {
-                            // TODO: handle response
-                            self.handle_response();
-                        }
-
-                        // Ignore all other events.
-                        _ => {}
+                // MDNS: peer expired
+                SwarmEvent::Behaviour(ProtocolBehaviourEvent::Mdns(
+                    mdns::Event::Expired(list),
+                )) => {
+                    for (_peer_id, _multiaddr) in list {
+                        // TODO: determine what happens to the protocol when a peer expires and re-connects.
+                        info!("peer(s) expired");
                     }
+                }
 
+                // Request-Response: received a request
+                SwarmEvent::Behaviour(ProtocolBehaviourEvent::RequestResponse(
+                    request_response::Event::Message {
+                        message:
+                            request_response::Message::Request {
+                                request,
+                                channel,
+                                ..
+                            },
+                            ..
+                    },
+                )) => {
+                    info!("request received");
+                    self.handle_request(request, channel);
+                }
 
+                // Request-Response: received a response
+                SwarmEvent::Behaviour(ProtocolBehaviourEvent::RequestResponse(
+                    request_response::Event::Message {
+                        peer: _,
+                        message:
+                            request_response::Message::Response {
+                                request_id: _,
+                                response: _,
+                            },
+                    },
+                )) => {
+                    info!("response received");
+                    self.handle_response();
+                }
 
+                // Ignore all other events.
+                _ => {}
             }
         }
+        // TODO: figure out how to handle errors here
+        Ok(())
     }
 
     fn get_address(&self) -> String {
