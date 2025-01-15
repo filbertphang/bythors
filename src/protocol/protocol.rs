@@ -1,6 +1,7 @@
-use crate::global_tbl;
+use std::task::Poll;
+
+use crate::globals;
 use crate::marshal::array::{index_lean_array, rust_vec_to_lean_array};
-use crate::marshal::core::lean_dec_cond;
 use crate::marshal::string::{lean_string_to_rust, rust_string_to_lean};
 use crate::protocol::lean_extern;
 use crate::protocol::message::Message;
@@ -33,7 +34,7 @@ impl Protocol {
         let node_state = lean_extern::init_node_state(protocol, node_address_lean);
 
         // initialize the global message hashtbl
-        global_tbl::initialize();
+        globals::message_hashtbl::initialize();
 
         // initialize round to 0
         let round = 0;
@@ -87,7 +88,7 @@ impl Protocol {
     /// Sends the message to all other nodes.
     pub unsafe fn send_message(&mut self, address: String, message: String) -> Vec<Packet> {
         // add the current message to the global message table
-        global_tbl::insert(address, message);
+        globals::message_hashtbl::insert(address, message);
 
         // send the InitialMessage
         // RC: increment refcount of `protocol`, since passing it into `send_message` gives it ownership,
@@ -136,30 +137,35 @@ impl Protocol {
     }
 
     // TODO: figure out `check_output` later.
-    // pub unsafe fn check_output(&mut self, round: usize) {
-    //     let leader = rust_string_to_lean(self.leader.clone());
+    fn check_output(&mut self, round: usize) -> Poll<String> {
+        unsafe {
+            let leader = rust_string_to_lean(self.leader.clone());
 
-    //     lean_inc(self.node_state);
-    //     let _output_opt_lean = check_output(self.node_state, leader, round);
+            lean_inc(self.node_state);
+            let output_opt_lean = lean_extern::check_output(self.node_state, leader, round);
 
-    //     // TODO: there's currently something very wrong with this, where
-    //     // the result of the `check_output` call doesn't even seem to be a valid Lean object.
-    //     // trying to do anything wiht it just segfaults.
-    //     // currently, we just debug print the output from lean directly as a band-aid solution.
-    //     // what_is_this("my option", output_opt_lean);
+            // note: the runtime representation of lean4 options are:
+            // - none: lean_box(0), which is a scalar
+            // - some x: a constructor with 1 parameter, where that parameter is probably x
+            match lean_is_scalar(output_opt_lean) {
+                true => {
+                    // is none
+                    Poll::Pending
+                }
+                false => {
+                    // is some
+                    let output_lean = lean_ctor_get(output_opt_lean, 0);
+                    let output = lean_string_to_rust(output_lean, false);
 
-    //     // let cast = |lean_str| lean_string_to_rust(lean_str, Mode::Borrow);
-    //     // let output_opt = lean_option_to_rust(output_opt_lean, cast);
+                    Poll::Ready(output)
+                }
+            }
+        }
+    }
 
-    //     // // we would normally return [output_opt] here to pass back to the application code,
-    //     // // but for now we just display it.
-    //     // match output_opt {
-    //     //     Some(v) => {
-    //     //         println!("\n============ CONSENSUS OBTAINED FOR ROUND {round} =============");
-    //     //         println!("\nValue: {v}\n");
-    //     //         println!("===============================================================\n");
-    //     //     }
-    //     //     None => (),
-    //     // }
+    // pub async unsafe fn check_consensus(&mut self, round: usize) -> String {
+    //     // ??
+    //     let f = std::future::poll_fn(Protocol::check_output);
+    //     panic!("")
     // }
 }

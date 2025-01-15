@@ -1,4 +1,5 @@
-mod global_tbl;
+mod debug;
+mod globals;
 mod marshal;
 pub mod network_driver;
-pub mod protocol;
+mod protocol;
