@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use crate::marshal::core::{lean_dec_cond, VOID_PTR_SIZE};
 use crate::marshal::string::lean_string_to_rust;
 use crate::protocol::message::Message;
@@ -13,15 +15,15 @@ pub struct Packet {
 
 impl std::fmt::Display for Packet {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "packet from {} to {} with message '{}' (consumed: {})",
-            self.src, self.dst, self.msg, self.consumed
-        )
+        <Packet as std::fmt::Debug>::fmt(&self, f)
     }
 }
 
 impl Packet {
+    pub fn get_round(&self) -> usize {
+        self.msg.get_round()
+    }
+
     // TODO (old): check if the convention should be `from_lean` or `of_lean`.
     /// Converts a Lean packet to its Rust representation.
     pub unsafe fn from_lean(packet_lean: *mut lean_object, dec_refcount: bool) -> Self {

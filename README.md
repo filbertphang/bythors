@@ -11,3 +11,4 @@ extremely WIP
 - detect when consensus is achieved for a round, and implement callback handling
 - improve network driver user API
 - review all the other 'TODO's left in the code (of which there are a lot of)
+- ensure no memory leaks

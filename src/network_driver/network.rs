@@ -3,8 +3,6 @@ use futures::StreamExt;
 use log::info;
 use std::str::FromStr;
 use std::time::Duration;
-use tokio::select;
-use tokio::sync::mpsc;
 
 use crate::marshal::initialization::initialize_lean_environment;
 use crate::network_driver::behaviour::{ProtocolBehaviour, ProtocolBehaviourEvent};
@@ -19,12 +17,11 @@ use libp2p::{mdns, request_response, PeerId, Swarm};
 pub struct Network {
     swarm: Swarm<ProtocolBehaviour>,
     protocol: Protocol,
-    receiver: mpsc::UnboundedReceiver<String>,
     // TODO: refine the type of the callback.
     // this will probably capture some part of the client application's environment, so we might
     // have to use `Fn` or `FnMut` instead of `fn`.
     // TODO: use the callback for something
-    callback: fn(String) -> (),
+    callback: fn(String, usize) -> (),
 }
 
 impl Network {
@@ -32,9 +29,8 @@ impl Network {
         identity: Keypair,
         all_peer_ids: &Vec<PeerId>,
         leader_peer_id: &PeerId,
-        callback: fn(String) -> (),
-        receiver: mpsc::UnboundedReceiver<String>,
-    ) -> Result<(Self), Box<dyn Error>> {
+        callback: fn(String, usize) -> (),
+    ) -> Result<Self, Box<dyn Error>> {
         // for diagnostics
         // tracing_subscriber::fmt()
         //     .with_env_filter(EnvFilter::from_default_env())
@@ -57,7 +53,7 @@ impl Network {
         // construct list of all peers, including self
         let self_id = swarm.local_peer_id().to_string();
         let leader_id = leader_peer_id.to_string();
-        let mut all_peers: Vec<String> = all_peer_ids
+        let all_peers: Vec<String> = all_peer_ids
             .iter()
             .map(|peer_id| peer_id.to_string())
             .collect();
@@ -77,7 +73,6 @@ impl Network {
         let network = Self {
             swarm,
             protocol,
-            receiver,
             callback,
         };
 
@@ -85,72 +80,60 @@ impl Network {
     }
 
     pub async fn poll(&mut self) -> Result<(), Box<dyn Error>> {
-        select! {
-            // handle a client broadcast
-            Some(message) = self.receiver.recv() => {
-                info!("broadcasting message");
-                self.broadcast(message);
+        // handle a swarm event (poll the swarm)
+        let event = self.swarm.select_next_some().await;
+        match event {
+            SwarmEvent::NewListenAddr { address, .. } => println!("Listening on {address:?}"),
+
+            // MDNS: new peer discovered
+            SwarmEvent::Behaviour(ProtocolBehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
+                info!("new peer(s) discovered");
+                for (peer_id, _multiaddr) in list {
+                    self.swarm.dial(peer_id)?;
+                }
             }
 
-            // handle a swarm event (poll the swarm)
-            event = self.swarm.select_next_some() => match event {
-                SwarmEvent::NewListenAddr { address, .. } => println!("Listening on {address:?}"),
-
-                // MDNS: new peer discovered
-                SwarmEvent::Behaviour(ProtocolBehaviourEvent::Mdns(
-                    mdns::Event::Discovered(list),
-                )) => {
-                    info!("new peer(s) discovered");
-                    for (peer_id, _multiaddr) in list {
-                        self.swarm.dial(peer_id)?;
-                    }
+            // MDNS: peer expired
+            SwarmEvent::Behaviour(ProtocolBehaviourEvent::Mdns(mdns::Event::Expired(list))) => {
+                for (_peer_id, _multiaddr) in list {
+                    // TODO: determine what happens to the protocol when a peer expires and re-connects.
+                    info!("peer(s) expired");
                 }
-
-                // MDNS: peer expired
-                SwarmEvent::Behaviour(ProtocolBehaviourEvent::Mdns(
-                    mdns::Event::Expired(list),
-                )) => {
-                    for (_peer_id, _multiaddr) in list {
-                        // TODO: determine what happens to the protocol when a peer expires and re-connects.
-                        info!("peer(s) expired");
-                    }
-                }
-
-                // Request-Response: received a request
-                SwarmEvent::Behaviour(ProtocolBehaviourEvent::RequestResponse(
-                    request_response::Event::Message {
-                        message:
-                            request_response::Message::Request {
-                                request,
-                                channel,
-                                ..
-                            },
-                            ..
-                    },
-                )) => {
-                    info!("request received");
-                    self.handle_request(request, channel);
-                }
-
-                // Request-Response: received a response
-                SwarmEvent::Behaviour(ProtocolBehaviourEvent::RequestResponse(
-                    request_response::Event::Message {
-                        peer: _,
-                        message:
-                            request_response::Message::Response {
-                                request_id: _,
-                                response: _,
-                            },
-                    },
-                )) => {
-                    info!("response received");
-                    self.handle_response();
-                }
-
-                // Ignore all other events.
-                _ => {}
             }
+
+            // Request-Response: received a request
+            SwarmEvent::Behaviour(ProtocolBehaviourEvent::RequestResponse(
+                request_response::Event::Message {
+                    message:
+                        request_response::Message::Request {
+                            request, channel, ..
+                        },
+                    ..
+                },
+            )) => {
+                info!("request received");
+                self.handle_request(request, channel);
+            }
+
+            // Request-Response: received a response
+            SwarmEvent::Behaviour(ProtocolBehaviourEvent::RequestResponse(
+                request_response::Event::Message {
+                    peer: _,
+                    message:
+                        request_response::Message::Response {
+                            request_id: _,
+                            response: _,
+                        },
+                },
+            )) => {
+                info!("response received");
+                self.handle_response();
+            }
+
+            // Ignore all other events.
+            _ => {}
         }
+
         // TODO: figure out how to handle errors here
         Ok(())
     }
@@ -160,9 +143,11 @@ impl Network {
     }
 
     /// Handles a broadcast from the client.
-    /// Begins a new round of consensus, starting with the clinet-supplied message.
-    fn broadcast(&mut self, message: String) {
-        let packets = unsafe { self.protocol.send_message(self.get_address(), message) };
+    /// Begins a new round of consensus, starting with the client-supplied message.
+    // TODO: add `round` as a parameter to this, and throw suitable errors if we're trying to
+    // broadcast to an existing round (ongoing or concluded)
+    pub fn broadcast(&mut self, message: String) {
+        let packets = unsafe { self.protocol.start_round(self.get_address(), message) };
         self.transmit(packets);
     }
 
@@ -171,6 +156,9 @@ impl Network {
         request: ProtocolRequest,
         channel: ResponseChannel<ProtocolResponse>,
     ) {
+        let packet = request.packet;
+        let round = packet.get_round();
+
         // acknowledge the packet
         self.swarm
             .behaviour_mut()
@@ -178,8 +166,19 @@ impl Network {
             .send_response(channel, ProtocolResponse::Ack)
             .expect("should be able to ack a request");
 
-        let packets_to_send = unsafe { self.protocol.handle_packet(request.packet) };
+        let packets_to_send = unsafe { self.protocol.handle_packet(packet) };
         self.transmit(packets_to_send);
+
+        // TODO: figure out why consensus doesnt seem to be reached for non-leader nodes
+        // (probably has to do with the address passed into `check_output`)
+        // check for consensus for this round
+        unsafe {
+            match self.protocol.check_output(round) {
+                None => {}
+                // consensus reached: trigger callback
+                Some(output) => (self.callback)(output, round),
+            }
+        }
     }
 
     fn handle_response(&mut self) {

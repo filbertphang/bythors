@@ -1,5 +1,3 @@
-use std::task::Poll;
-
 use crate::globals;
 use crate::marshal::array::{index_lean_array, rust_vec_to_lean_array};
 use crate::marshal::string::{lean_string_to_rust, rust_string_to_lean};
@@ -7,15 +5,21 @@ use crate::protocol::lean_extern;
 use crate::protocol::message::Message;
 use crate::protocol::packet::Packet;
 use lean_sys::*;
+use log::info;
+use std::collections::HashSet;
 
 pub use crate::protocol::lean_extern::initialize_ReliableBroadcastConcrete;
 
 #[derive(Debug)]
 pub struct Protocol {
-    pub protocol: *mut lean_object,
-    pub node_state: *mut lean_object,
-    pub round: usize,
-    pub leader: String,
+    protocol: *mut lean_object,
+    node_state: *mut lean_object,
+    round: usize,
+    // this field denotes which rounds are still pending consensus.
+    // when a new round is started, the round number is added to the hash set.
+    // when we reach consensus for that round, it is removed from the hash set.
+    reached_consensus: HashSet<usize>,
+    leader: String,
 }
 
 impl Protocol {
@@ -33,16 +37,18 @@ impl Protocol {
         lean_inc(protocol);
         let node_state = lean_extern::init_node_state(protocol, node_address_lean);
 
-        // initialize the global message hashtbl
+        // initialize the global message hashtbl and consensus state
         globals::message_hashtbl::initialize();
+        let reached_consensus = HashSet::new();
 
         // initialize round to 0
         let round = 0;
 
-        Protocol {
+        Self {
             protocol,
             node_state,
             round,
+            reached_consensus,
             leader,
         }
     }
@@ -86,7 +92,7 @@ impl Protocol {
 
     /// Starts a new round of consensus with a given message.
     /// Sends the message to all other nodes.
-    pub unsafe fn send_message(&mut self, address: String, message: String) -> Vec<Packet> {
+    pub unsafe fn start_round(&mut self, address: String, message: String) -> Vec<Packet> {
         // add the current message to the global message table
         globals::message_hashtbl::insert(address, message);
 
@@ -114,9 +120,7 @@ impl Protocol {
 
     pub unsafe fn handle_packet(&mut self, packet: Packet) -> Vec<Packet> {
         // debug print
-        println!("received packet:");
-        dbg!(&packet);
-        println!("");
+        info!("received packet:\n{}", packet);
 
         let src_lean = rust_string_to_lean(packet.src);
         let msg_lean = Message::to_lean(packet.msg);
@@ -137,8 +141,11 @@ impl Protocol {
     }
 
     // TODO: figure out `check_output` later.
-    fn check_output(&mut self, round: usize) -> Poll<String> {
-        unsafe {
+    pub unsafe fn check_output(&mut self, round: usize) -> Option<String> {
+        if self.reached_consensus.contains(&round) {
+            // we have already achieved consensus for this round, no need to return the output
+            return None;
+        } else {
             let leader = rust_string_to_lean(self.leader.clone());
 
             lean_inc(self.node_state);
@@ -149,23 +156,18 @@ impl Protocol {
             // - some x: a constructor with 1 parameter, where that parameter is probably x
             match lean_is_scalar(output_opt_lean) {
                 true => {
-                    // is none
-                    Poll::Pending
+                    // consensus not yet reached for this round
+                    None
                 }
                 false => {
-                    // is some
+                    // consensus reached, return output value
                     let output_lean = lean_ctor_get(output_opt_lean, 0);
                     let output = lean_string_to_rust(output_lean, false);
+                    self.reached_consensus.insert(round);
 
-                    Poll::Ready(output)
+                    Some(output)
                 }
             }
         }
     }
-
-    // pub async unsafe fn check_consensus(&mut self, round: usize) -> String {
-    //     // ??
-    //     let f = std::future::poll_fn(Protocol::check_output);
-    //     panic!("")
-    // }
 }

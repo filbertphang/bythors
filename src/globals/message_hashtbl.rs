@@ -9,7 +9,7 @@ use std::{collections::HashMap, sync::Mutex};
 // the NodeState and the global state on the Rust side, at the cost of additional hassle of working with monads.
 
 // maps from Address (String) -> Message (String)
-pub static GLOBAL_MESSAGE_HASHTBL: OnceCell<Mutex<HashMap<String, String>>> = OnceCell::new();
+static GLOBAL_MESSAGE_HASHTBL: OnceCell<Mutex<HashMap<String, String>>> = OnceCell::new();
 
 pub fn initialize() {
     GLOBAL_MESSAGE_HASHTBL
