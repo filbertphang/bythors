@@ -7,8 +7,10 @@ use std::time::Duration;
 use crate::marshal::initialization::initialize_lean_environment;
 use crate::network_driver::behaviour::{ProtocolBehaviour, ProtocolBehaviourEvent};
 use crate::network_driver::request_response::{ProtocolRequest, ProtocolResponse};
-use crate::protocol::packet::Packet;
-use crate::protocol::protocol::{initialize_ReliableBroadcastConcrete, Protocol};
+use crate::protocol::reliable_broadcast::packet::Packet;
+use crate::protocol::reliable_broadcast::protocol::{
+    initialize_ReliableBroadcastConcrete, Protocol,
+};
 use libp2p::identity::Keypair;
 use libp2p::request_response::ResponseChannel;
 use libp2p::swarm::SwarmEvent;

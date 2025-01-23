@@ -1,14 +1,14 @@
+use super::lean_extern;
+use super::message::Message;
+use super::packet::Packet;
 use crate::globals;
 use crate::marshal::array::{index_lean_array, rust_vec_to_lean_array};
 use crate::marshal::string::{lean_string_to_rust, rust_string_to_lean};
-use crate::protocol::lean_extern;
-use crate::protocol::message::Message;
-use crate::protocol::packet::Packet;
 use lean_sys::*;
 use log::info;
 use std::collections::HashSet;
 
-pub use crate::protocol::lean_extern::initialize_ReliableBroadcastConcrete;
+pub use super::lean_extern::initialize_ReliableBroadcastConcrete;
 
 #[derive(Debug)]
 pub struct Protocol {

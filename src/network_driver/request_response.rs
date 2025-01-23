@@ -1,4 +1,4 @@
-use crate::protocol::packet::Packet;
+use crate::protocol::reliable_broadcast::packet::Packet;
 use std::error::Error;
 use std::fmt::Display;
 

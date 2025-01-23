@@ -1,8 +1,8 @@
 use std::fmt::Debug;
 
+use super::message::Message;
 use crate::marshal::core::{lean_dec_cond, VOID_PTR_SIZE};
 use crate::marshal::string::lean_string_to_rust;
-use crate::protocol::message::Message;
 use lean_sys::*;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
