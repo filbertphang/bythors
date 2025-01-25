@@ -8,9 +8,8 @@ use crate::marshal::initialization::initialize_lean_environment;
 use crate::network_driver::behaviour::{ProtocolBehaviour, ProtocolBehaviourEvent};
 use crate::network_driver::request_response::{ProtocolRequest, ProtocolResponse};
 use crate::protocol::reliable_broadcast::packet::Packet;
-use crate::protocol::reliable_broadcast::protocol::{
-    initialize_ReliableBroadcastConcrete, Protocol,
-};
+use crate::protocol::reliable_broadcast::protocol::ReliableBroadcast;
+use crate::protocol::Protocol;
 use libp2p::identity::Keypair;
 use libp2p::request_response::ResponseChannel;
 use libp2p::swarm::SwarmEvent;
@@ -18,7 +17,7 @@ use libp2p::{mdns, request_response, PeerId, Swarm};
 
 pub struct Network {
     swarm: Swarm<ProtocolBehaviour>,
-    protocol: Protocol,
+    protocol: ReliableBroadcast,
     // TODO: refine the type of the callback.
     // this will probably capture some part of the client application's environment, so we might
     // have to use `Fn` or `FnMut` instead of `fn`.
@@ -62,10 +61,10 @@ impl Network {
 
         let protocol = unsafe {
             // initialize lean environment
-            initialize_lean_environment(initialize_ReliableBroadcastConcrete);
+            initialize_lean_environment(ReliableBroadcast::initialize_lean);
 
             // construct lean protocol
-            Protocol::create(all_peers, self_id, leader_id)
+            ReliableBroadcast::create(all_peers, self_id, leader_id)
         };
 
         // Tell the swarm to listen on all interfaces and a random, OS-assigned port.

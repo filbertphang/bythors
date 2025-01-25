@@ -3,7 +3,7 @@ use lean_sys::*;
 // https://lean-lang.org/lean4/doc/dev/ffi.html#initialization
 // https://git.leni.sh/aniva/RustCallLean/src/branch/main/src/main.rs#L30
 pub unsafe fn initialize_lean_environment(
-    initialize_callee: unsafe extern "C" fn(u8, lean_obj_arg) -> lean_obj_res,
+    initialize_callee: unsafe fn(u8, lean_obj_arg) -> lean_obj_res,
 ) {
     lean_initialize_runtime_module();
     lean_initialize(); // necessary if you (indirectly) access the `Lean` package
