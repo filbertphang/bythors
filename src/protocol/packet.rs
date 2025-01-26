@@ -1,30 +1,31 @@
-use std::fmt::Debug;
-
 use super::message::Message;
+
 use crate::marshal::core::{lean_dec_cond, VOID_PTR_SIZE};
 use crate::marshal::string::lean_string_to_rust;
+
 use lean_sys::*;
+use std::fmt::Debug;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub struct Packet<T> {
+pub struct Packet<M> {
     pub src: String,
     pub dst: String,
-    pub msg: T,
+    pub msg: M,
     pub consumed: bool,
 }
 
-impl<T> std::fmt::Display for Packet<T>
+impl<M> std::fmt::Display for Packet<M>
 where
-    T: Message,
+    M: Message,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        <Packet<T> as std::fmt::Debug>::fmt(&self, f)
+        <Packet<M> as std::fmt::Debug>::fmt(&self, f)
     }
 }
 
-impl<T> Packet<T>
+impl<M> Packet<M>
 where
-    T: Message,
+    M: Message,
 {
     pub fn get_round(&self) -> usize {
         self.msg.get_round()
@@ -45,7 +46,7 @@ where
         // it should suffice to decrement just the refcount of the packet.
         let src = lean_string_to_rust(src_lean, false);
         let dst = lean_string_to_rust(dst_lean, false);
-        let msg = T::from_lean(msg_lean, false);
+        let msg = M::from_lean(msg_lean, false);
 
         // no proper way to cast u8 to bool, so we do this instead
         let consumed: bool = consumed_lean != 0;

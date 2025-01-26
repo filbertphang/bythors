@@ -8,6 +8,8 @@ use std::{collections::HashMap, sync::Mutex};
 // The benefit of this is that state lives exactly in one place (NodeState) as opposed to being split across
 // the NodeState and the global state on the Rust side, at the cost of additional hassle of working with monads.
 
+// TODO: should global message hashtbl be an implementation detail for reliable broadcast?
+
 // maps from Address (String) -> Message (String)
 static GLOBAL_MESSAGE_HASHTBL: OnceCell<Mutex<HashMap<String, String>>> = OnceCell::new();
 

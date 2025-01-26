@@ -1,9 +1,11 @@
 use super::lean_extern;
 use super::message::RBMessage;
+
 use crate::globals;
 use crate::marshal::array::{index_lean_array, rust_vec_to_lean_array};
 use crate::marshal::string::{lean_string_to_rust, rust_string_to_lean};
 use crate::protocol::{Message, Packet, Protocol};
+
 use lean_sys::*;
 use log::info;
 use std::collections::HashSet;
@@ -23,7 +25,7 @@ pub struct ReliableBroadcast {
 type RBPacket = Packet<RBMessage>;
 
 impl Protocol for ReliableBroadcast {
-    type Packet = RBPacket;
+    type Message = RBMessage;
 
     unsafe fn initialize_lean(builtin: u8, world: lean_obj_arg) -> lean_obj_res {
         lean_extern::initialize_ReliableBroadcastConcrete(builtin, world)

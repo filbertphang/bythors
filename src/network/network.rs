@@ -1,23 +1,29 @@
-use core::error::Error;
-use futures::StreamExt;
-use log::info;
-use std::str::FromStr;
-use std::time::Duration;
+use super::behaviour::{ProtocolBehaviour, ProtocolBehaviourEvent};
+use super::request_response::{ProtocolRequest, ProtocolResponse};
 
 use crate::marshal::initialization::initialize_lean_environment;
-use crate::network_driver::behaviour::{ProtocolBehaviour, ProtocolBehaviourEvent};
-use crate::network_driver::request_response::{ProtocolRequest, ProtocolResponse};
-use crate::protocol::reliable_broadcast::packet::Packet;
-use crate::protocol::reliable_broadcast::protocol::ReliableBroadcast;
-use crate::protocol::Protocol;
+use crate::protocol::{Message, Packet, Protocol};
+
+use core::error::Error;
+use futures::StreamExt;
 use libp2p::identity::Keypair;
 use libp2p::request_response::ResponseChannel;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{mdns, request_response, PeerId, Swarm};
+use log::info;
+use std::str::FromStr;
+use std::time::Duration;
 
-pub struct Network {
-    swarm: Swarm<ProtocolBehaviour>,
-    protocol: ReliableBroadcast,
+pub struct Network<T>
+where
+    T: Protocol,
+    T::Message: Message + 'static,
+{
+    // TODO: try replacing the associated type `Packet` in `Protocol` with `Message`?
+    // so that we can assert that message has the bound `protocol::Message`
+    // it's kinda fucky
+    swarm: Swarm<ProtocolBehaviour<T::Message>>,
+    protocol: T,
     // TODO: refine the type of the callback.
     // this will probably capture some part of the client application's environment, so we might
     // have to use `Fn` or `FnMut` instead of `fn`.
@@ -25,7 +31,11 @@ pub struct Network {
     callback: fn(String, usize) -> (),
 }
 
-impl Network {
+impl<T> Network<T>
+where
+    T: Protocol,
+    T::Message: Message + 'static,
+{
     pub fn initialize(
         identity: Keypair,
         all_peer_ids: &Vec<PeerId>,
@@ -61,10 +71,10 @@ impl Network {
 
         let protocol = unsafe {
             // initialize lean environment
-            initialize_lean_environment(ReliableBroadcast::initialize_lean);
+            initialize_lean_environment(T::initialize_lean);
 
             // construct lean protocol
-            ReliableBroadcast::create(all_peers, self_id, leader_id)
+            T::create(all_peers, self_id, leader_id)
         };
 
         // Tell the swarm to listen on all interfaces and a random, OS-assigned port.
@@ -154,7 +164,7 @@ impl Network {
 
     fn handle_request(
         &mut self,
-        request: ProtocolRequest,
+        request: ProtocolRequest<T::Message>,
         channel: ResponseChannel<ProtocolResponse>,
     ) {
         let packet = request.packet;
@@ -189,13 +199,13 @@ impl Network {
     }
 
     /// Transmits a packet to all other nodes.
-    fn transmit(&mut self, packets: Vec<Packet>) {
+    fn transmit(&mut self, packets: Vec<Packet<T::Message>>) {
         packets
             .into_iter()
             .for_each(|packet| self.send_individual_packet(packet));
     }
 
-    fn send_individual_packet(&mut self, packet: Packet) {
+    fn send_individual_packet(&mut self, packet: Packet<T::Message>) {
         let src_id =
             PeerId::from_str(packet.src.as_str()).expect("expected well-formed source address");
         let dst_id = PeerId::from_str(packet.dst.as_str())

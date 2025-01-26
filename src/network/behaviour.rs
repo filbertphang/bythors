@@ -1,4 +1,7 @@
-use crate::network_driver::request_response::{ProtocolRequest, ProtocolResponse};
+use super::request_response::{ProtocolRequest, ProtocolResponse};
+
+use crate::protocol::Message;
+
 use libp2p::identity::Keypair;
 use libp2p::request_response::ProtocolSupport;
 use libp2p::swarm::NetworkBehaviour;
@@ -9,14 +12,24 @@ use std::time::Duration;
 // - mdns behaviour for peer discovery
 // - request_response behaviour for sending messages
 //   - cbor as serialization mechanism
-//   - <ProtocolRequest, ProtocolResponse> as the request and response type respectively
+//   - <ProtocolRequest<P>, ProtocolResponse> as the request and response type respectively
+//     (P is the packet type)
+//
+// note: trait bound for Message on the struct definitioon is mandatory here due to the implementation
+// of cbor::Behaviour.
 #[derive(NetworkBehaviour)]
-pub struct ProtocolBehaviour {
+pub struct ProtocolBehaviour<M>
+where
+    M: Message + 'static,
+{
     pub mdns: mdns::tokio::Behaviour,
-    pub request_response: request_response::cbor::Behaviour<ProtocolRequest, ProtocolResponse>,
+    pub request_response: request_response::cbor::Behaviour<ProtocolRequest<M>, ProtocolResponse>,
 }
 
-impl ProtocolBehaviour {
+impl<M> ProtocolBehaviour<M>
+where
+    M: Message,
+{
     pub fn new(keypair: &Keypair) -> Self {
         let local_peer_id = keypair.public().to_peer_id();
 
@@ -29,14 +42,16 @@ impl ProtocolBehaviour {
 
         Self {
             mdns: mdns::tokio::Behaviour::new(mdns_config, local_peer_id).unwrap(),
-            request_response:
-                request_response::cbor::Behaviour::<ProtocolRequest, ProtocolResponse>::new(
-                    [(
-                        StreamProtocol::new("/bythors/protocol/1"),
-                        ProtocolSupport::Full,
-                    )],
-                    request_response::Config::default(),
-                ),
+            request_response: request_response::cbor::Behaviour::<
+                ProtocolRequest<M>,
+                ProtocolResponse,
+            >::new(
+                [(
+                    StreamProtocol::new("/bythors/protocol/1"),
+                    ProtocolSupport::Full,
+                )],
+                request_response::Config::default(),
+            ),
         }
     }
 }

@@ -1,3 +1,6 @@
 mod lean_extern;
-pub mod message;
-pub mod protocol;
+mod message;
+mod protocol;
+
+pub use message::RBMessage;
+pub use protocol::ReliableBroadcast;
