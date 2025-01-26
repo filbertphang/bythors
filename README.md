@@ -4,11 +4,12 @@ a rust library for running protocols defined with [`bythos` (now `veil`, previou
 
 ## current status
 
-extremely WIP
+still extremely WIP
 
 **TODOs before the next milestone:**
 
-- detect when consensus is achieved for a round, and implement callback handling
-- improve network driver user API
+- improve callback handling
+- further improve network driver user API
 - review all the other 'TODO's left in the code (of which there are a lot of)
 - ensure no memory leaks
+- translate paxos/raft to lean?
