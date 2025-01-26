@@ -6,20 +6,26 @@ use crate::marshal::string::lean_string_to_rust;
 use lean_sys::*;
 
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub struct Packet {
+pub struct Packet<T> {
     pub src: String,
     pub dst: String,
-    pub msg: Message,
+    pub msg: T,
     pub consumed: bool,
 }
 
-impl std::fmt::Display for Packet {
+impl<T> std::fmt::Display for Packet<T>
+where
+    T: Message,
+{
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        <Packet as std::fmt::Debug>::fmt(&self, f)
+        <Packet<T> as std::fmt::Debug>::fmt(&self, f)
     }
 }
 
-impl Packet {
+impl<T> Packet<T>
+where
+    T: Message,
+{
     pub fn get_round(&self) -> usize {
         self.msg.get_round()
     }
@@ -39,7 +45,7 @@ impl Packet {
         // it should suffice to decrement just the refcount of the packet.
         let src = lean_string_to_rust(src_lean, false);
         let dst = lean_string_to_rust(dst_lean, false);
-        let msg = Message::from_lean(msg_lean, false);
+        let msg = T::from_lean(msg_lean, false);
 
         // no proper way to cast u8 to bool, so we do this instead
         let consumed: bool = consumed_lean != 0;

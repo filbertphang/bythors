@@ -1,10 +1,9 @@
 use super::lean_extern;
-use super::message::Message;
-use super::packet::Packet;
+use super::message::RBMessage;
 use crate::globals;
 use crate::marshal::array::{index_lean_array, rust_vec_to_lean_array};
 use crate::marshal::string::{lean_string_to_rust, rust_string_to_lean};
-use crate::protocol::Protocol;
+use crate::protocol::{Message, Packet, Protocol};
 use lean_sys::*;
 use log::info;
 use std::collections::HashSet;
@@ -21,8 +20,10 @@ pub struct ReliableBroadcast {
     leader: String,
 }
 
+type RBPacket = Packet<RBMessage>;
+
 impl Protocol for ReliableBroadcast {
-    type Packet = Packet;
+    type Packet = RBPacket;
 
     unsafe fn initialize_lean(builtin: u8, world: lean_obj_arg) -> lean_obj_res {
         lean_extern::initialize_ReliableBroadcastConcrete(builtin, world)
@@ -60,7 +61,7 @@ impl Protocol for ReliableBroadcast {
 
     /// Starts a new round of consensus with a given message.
     /// Sends the message to all other nodes.
-    unsafe fn start_round(&mut self, address: String, message: String) -> Vec<Packet> {
+    unsafe fn start_round(&mut self, address: String, message: String) -> Vec<RBPacket> {
         // add the current message to the global message table
         globals::message_hashtbl::insert(address, message);
 
@@ -90,12 +91,12 @@ impl Protocol for ReliableBroadcast {
     /// representation.
     /// This function TAKES OWNERSHIP of `state_and_packets`, and returns ownership of
     /// the new state and packet vector.
-    unsafe fn handle_packet(&mut self, packet: Packet) -> Vec<Packet> {
+    unsafe fn handle_packet(&mut self, packet: RBPacket) -> Vec<RBPacket> {
         // debug print
         info!("received packet:\n{}", packet);
 
         let src_lean = rust_string_to_lean(packet.src);
-        let msg_lean = Message::to_lean(packet.msg);
+        let msg_lean = packet.msg.to_lean();
 
         // RC: increment refcount of `protocol`, since passing it into `send_message` gives it ownership,
         // and we need it to persist after the function call.
@@ -146,7 +147,7 @@ impl Protocol for ReliableBroadcast {
 
 unsafe fn deconstruct_state_and_packets(
     state_and_packets: *mut lean_object,
-) -> (*mut lean_object, Vec<Packet>) {
+) -> (*mut lean_object, Vec<RBPacket>) {
     // deconstruct new protocol state
     assert!(lean_is_ctor(state_and_packets));
     assert!(lean_ctor_num_objs(state_and_packets) == 2);
@@ -164,7 +165,7 @@ unsafe fn deconstruct_state_and_packets(
 
         // unmarshall the packet into rust.
         // RC: since we incremeneted refcount when indexing, decrement it after we're done marshalling.
-        let packet_rust = Packet::from_lean(packet_lean, true);
+        let packet_rust = RBPacket::from_lean(packet_lean, true);
         packets_to_send.push(packet_rust);
     }
 

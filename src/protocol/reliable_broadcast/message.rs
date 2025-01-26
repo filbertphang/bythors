@@ -1,6 +1,7 @@
 use super::lean_extern;
 use crate::marshal::core::lean_dec_cond;
 use crate::marshal::string::{lean_string_to_rust, rust_string_to_lean};
+use crate::protocol::Message;
 use lean_sys::*;
 
 // note: even though the lean representation looks identical to this enum type,
@@ -8,7 +9,7 @@ use lean_sys::*;
 // since `USize` fields are ordered AFTER `lean_object` fields, each constructor would look like:
 // `| EchoMsg { originator: String, v: String, r: usize }`, and we have to deconstruct it in that order.
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
-pub enum Message {
+pub enum RBMessage {
     InitialMsg {
         r: usize,
         v: String,
@@ -25,28 +26,28 @@ pub enum Message {
     },
 }
 
-impl std::fmt::Display for Message {
+impl std::fmt::Display for RBMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Message::InitialMsg { r, v } => write!(f, "InitialMsg @ round {}: {}", r, v),
-            Message::EchoMsg { originator, r, v } => {
+            RBMessage::InitialMsg { r, v } => write!(f, "InitialMsg @ round {}: {}", r, v),
+            RBMessage::EchoMsg { originator, r, v } => {
                 write!(f, "EchoMsg from {} @ round {}: {}", originator, r, v)
             }
-            Message::VoteMsg { originator, r, v } => {
+            RBMessage::VoteMsg { originator, r, v } => {
                 write!(f, "VoteMsg from {} @ round {}: {}", originator, r, v)
             }
         }
     }
 }
 
-impl Message {
-    pub fn get_round(&self) -> usize {
+impl Message for RBMessage {
+    fn get_round(&self) -> usize {
         match &self {
             Self::InitialMsg { r, .. } | Self::EchoMsg { r, .. } | Self::VoteMsg { r, .. } => *r,
         }
     }
 
-    pub unsafe fn from_lean(msg_lean: *mut lean_object, dec_refcount: bool) -> Self {
+    unsafe fn from_lean(msg_lean: *mut lean_object, dec_refcount: bool) -> Self {
         let tag = lean_ptr_tag(msg_lean);
         let mut current_field_id = 0;
 
@@ -77,15 +78,15 @@ impl Message {
 
         // construct Rust message
         match tag {
-            0 => Message::InitialMsg { r, v },
-            1 => Message::EchoMsg { originator, r, v },
-            2 => Message::VoteMsg { originator, r, v },
+            0 => RBMessage::InitialMsg { r, v },
+            1 => RBMessage::EchoMsg { originator, r, v },
+            2 => RBMessage::VoteMsg { originator, r, v },
             _ => panic!("unexpected tag"),
         }
     }
 
     // Takes ownership of the Rust Message.
-    pub unsafe fn to_lean(self) -> *mut lean_object {
+    unsafe fn to_lean(self) -> *mut lean_object {
         let tag: usize;
         let originator_r: String;
         let r_r: usize;
