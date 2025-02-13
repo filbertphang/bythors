@@ -1,6 +1,8 @@
 import LeanSts.State
 import LeanSts.BFT.Network
 
+open Std (HashMap)
+
 -- define a opaque Repr for functions, so that we can Eval things.
 instance (α : Type) (β : Type) : Repr (α → β) where
   reprPrec _ _ := Std.Format.text "(function, opaque)"
@@ -14,6 +16,7 @@ section Raft
 variable {Address Value : Type}
 variable [dec_addr : DecidableEq Address] [dec_value : DecidableEq Value]
 variable [repr_addr : Repr Address] [repr_value : Repr Value]
+variable [hashable_addr : Hashable Address]
 
 @[reducible] def Term := Nat
 @[reducible] def Index := Nat
@@ -76,12 +79,12 @@ structure NodeState :=
 
   /- volatile state on leaders -/
   /- (re-initialized after election) -/
-  nextIndex : Address → Index
-  matchIndex : Address → Index
+  nextIndex : HashMap Address Index
+  matchIndex : HashMap Address Index
 deriving Repr
 
 local notation "RaftMessage" => (@Message Address Value)
-local notation "RaftState" => (@NodeState Address Value)
+local notation "RaftState" => (@NodeState Address Value dec_addr hashable_addr)
 local notation "RaftPacket" => (Packet Address RaftMessage)
 
 def makePacket (state : RaftState) (dst : Address) (msg: RaftMessage) : RaftPacket :=
@@ -110,8 +113,12 @@ def initLocalState
     commitIndex := 0
     -- lastApplied := 0
 
-    nextIndex := λ _ ↦ 1
-    matchIndex := λ _ ↦ 0
+    nextIndex :=
+      List.map (λ addr ↦ (addr, 1)) nodes
+      |> HashMap.ofList
+    matchIndex :=
+      List.map (λ addr ↦ (addr, 0)) nodes
+      |> HashMap.ofList
   }
 
 /- responds to a NewClientEntry message.
@@ -210,8 +217,13 @@ def handleAppendEntriesReply
       -- TODO: update matchIndex and nextIndex for follower?
       sorry
     | false =>
-      let decrementedNextIndex := (state.nextIndex fromId) - 1
-      let newState := { state with nextIndex := state.nextIndex[fromId ↦ decrementedNextIndex]}
+      -- currently,  we use runtime checks to ensure that the HashMap access
+      -- is valid (for convenience).
+      -- in the future, we might want to supply a proof that the elements are always contained,
+      -- or use optional access instead (`hashmap[idx]?`).
+      let decrementedNextIndex := state.nextIndex[fromId]! - 1
+      let newState := { state with nextIndex := HashMap.insert state.nextIndex fromId decrementedNextIndex}
+
       let prevLogIndex := decrementedNextIndex - 1
       let logLength := List.length state.log
       let ltProp := prevLogIndex < logLength
