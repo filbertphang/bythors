@@ -114,6 +114,46 @@ def initLocalState
     matchIndex := λ _ ↦ 0
   }
 
+/- responds to a NewClientEntry message.
+
+   TODO: implement a function for the outside world to send entries.
+   (probably in `RaftConcrete.lean`)
+
+   a NewClientEntry message is generated from outside the system,
+   i.e., our protocol must expose a function to the client to allow
+   them to send new entries into the system.
+
+   this exposed function should also be responsible for directing
+   the entry to the current leader, or if no leader currently exists,
+   to direct it to the next agreed-upon leader.
+ -/
+def handleNewClientEntry
+    (state : RaftState)
+    (entry : Value)
+    : RaftState × List RaftPacket :=
+    match state.mode with
+    | Mode.Leader =>
+      -- call AppendEntries RPC to all nodes (including self)
+      let packets :=
+        List.map
+        (λ addr ↦
+          (Message.AppendEntries
+          state.currentTerm
+          state.id
+          sorry -- todo: prevLogIndex
+          sorry -- todo: prevLogTerm
+          [(state.currentTerm, entry)]
+          state.commitIndex)
+          |> makePacket state addr
+        )
+        state.allNodes
+      let newState := {state with log := List.concat state.log (state.currentTerm, entry)}
+      (newState, packets)
+    -- followers and candidates should not be receiving this message
+    | Mode.Follower
+    | Mode.Candidate =>
+      (state, [])
+
 -- follower (receiver) implementation
 def handleAppendEntries
     (state : RaftState)
@@ -125,31 +165,39 @@ def handleAppendEntries
     (entries : List (Term × Value))
     (leaderCommit : Index)
     : RaftState × List RaftPacket :=
-    let reply (success : Bool) : List RaftPacket :=
-      [makePacket state leaderId (Message.AppendEntriesReply term state.id success)]
-    if term < state.currentTerm then
-      (state, reply false)
-    else
-      match List.get? state.log prevLogIndex with
-      | none =>
-        -- section 5.1
+    match state.mode with
+    -- leaders and candidates ignore RPC call
+    | Mode.Leader
+    | Mode.Candidate =>
+      (state, [])
+
+    -- followers respond to RPC call
+    | Mode.Follower =>
+      let reply (success : Bool) : List RaftPacket :=
+        [makePacket state leaderId (Message.AppendEntriesReply term state.id success)]
+      if term < state.currentTerm then
         (state, reply false)
-      | some (entryTerm, _) =>
-        -- section 5.3
-        if entryTerm = prevLogTerm then
-          let newLog := List.take prevLogIndex state.log
-          let newState := {state with log := newLog}
-          (newState, reply false)
-        else
-          let baseLog := List.take (prevLogIndex + 1) state.log
-          let newLog := List.append baseLog entries
-          let newCommitIndex := max (state.commitIndex) (min leaderCommit (List.length newLog - 1))
-          let newState := {
-            state with
-            log := newLog,
-            commitIndex := newCommitIndex
-          }
-          (newState, reply true)
+      else
+        match List.get? state.log prevLogIndex with
+        | none =>
+          -- section 5.1
+          (state, reply false)
+        | some (entryTerm, _) =>
+          -- section 5.3
+          if entryTerm = prevLogTerm then
+            let newLog := List.take prevLogIndex state.log
+            let newState := {state with log := newLog}
+            (newState, reply false)
+          else
+            let baseLog := List.take (prevLogIndex + 1) state.log
+            let newLog := List.append baseLog entries
+            let newCommitIndex := max (state.commitIndex) (min leaderCommit (List.length newLog - 1))
+            let newState := {
+              state with
+              log := newLog,
+              commitIndex := newCommitIndex
+            }
+            (newState, reply true)
 
 def handleAppendEntriesReply
     (state : RaftState)
@@ -198,6 +246,7 @@ def handleMessage
   (msg : RaftMessage)
   : RaftState × List RaftPacket :=
   match msg with
+  | Message.NewClientEntry entry => handleNewClientEntry state entry
   | Message.AppendEntries term leaderId prevLogIndex prevLogTerm entries leaderCommit =>
     handleAppendEntries state term leaderId prevLogIndex prevLogTerm entries leaderCommit
   | Message.AppendEntriesReply term fromId success =>
