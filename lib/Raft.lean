@@ -1,6 +1,10 @@
 import LeanSts.State
 import LeanSts.BFT.Network
 
+-- define a opaque Repr for functions, so that we can Eval things.
+instance (α : Type) (β : Type) : Repr (α → β) where
+  reprPrec _ _ := Std.Format.text "(function, opaque)"
+
 /-
   simple un-optimized implementation, excludes cluster
   membership changes and log compaction
@@ -9,11 +13,21 @@ section Raft
 
 variable {Address Value : Type}
 variable [dec_addr : DecidableEq Address] [dec_value : DecidableEq Value]
+variable [repr_addr : Repr Address] [repr_value : Repr Value]
 
 @[reducible] def Term := Nat
 @[reducible] def Index := Nat
 
+-- TODO: make use of this
+inductive Mode
+  | Leader
+  | Follower
+  | Candidate
+deriving Repr
+
 inductive Message
+  | NewClientEntry
+    (entry : Value)
   | AppendEntries
     (term : Term)
     (leaderId : Address)
@@ -35,28 +49,36 @@ inductive Message
     (term : Term)
     (fromId : Address)
     (voteGranted : Bool)
+deriving Repr
 
 structure NodeState :=
   /- persistent state on leaders -/
   id : Address
+  leaderId : Option Address
   allNodes : List Address
   currentTerm : Term
-  votedFor : Term → Option Address
+  votedFor : Option Address
   -- TODO: type for `log`?
   log : List (Term × Value)
 
   /- volatile state on servers -/
+  mode : Mode
   commitIndex : Index
 
   /- ignore `lastApplied` temporarily, because we do not
      specify callbacks yet to handle applying a command to
-     the state machine. -/
+     the state machine.
+
+     callbacks can probably be implemented as an `[extern]` function of type `Value ↦ unit` or something similar
+     (but then it needs to be linked properly)
+   -/
   -- lastApplied : Index
 
   /- volatile state on leaders -/
   /- (re-initialized after election) -/
   nextIndex : Address → Index
   matchIndex : Address → Index
+deriving Repr
 
 local notation "RaftMessage" => (@Message Address Value)
 local notation "RaftState" => (@NodeState Address Value)
@@ -72,14 +94,18 @@ def makePacket (state : RaftState) (dst : Address) (msg: RaftMessage) : RaftPack
 
 def initLocalState
   (id : Address)
+  (leaderId : Address)
   (nodes : List Address)
   : RaftState :=
   {
     id := id
+    leaderId := leaderId
     allNodes := nodes
     currentTerm := 0
-    votedFor := λ _ ↦ none
+    votedFor := none
     log := []
+
+    mode := if id = leaderId then Mode.Leader else Mode.Follower
 
     commitIndex := 0
     -- lastApplied := 0
@@ -182,3 +208,20 @@ def handleMessage
   | _ => sorry
 
 end Raft
+
+section RaftTest
+  -- putting this in the same file, for now
+  @[reducible] def ConcreteAddress := Nat
+  @[reducible] def ConcreteValue := String
+
+  abbrev ConcreteRaftMessage := (@Message ConcreteAddress ConcreteValue)
+  abbrev ConcreteRaftState := (@NodeState ConcreteAddress ConcreteValue)
+  abbrev ConcreteRaftPacket := (Packet ConcreteAddress ConcreteRaftMessage)
+  -- abbrev ConcreteRaftProtocol := @NetworkProtocol ConcreteAddress (ConcreteRBMessage) (ConcreteRBState) (ConcreteRBInternalTransition)
+
+  def all_nodes : List ConcreteAddress := [0, 1, 2, 3]
+  def nodes : List ConcreteRaftState := List.map (λ addr ↦ initLocalState addr 0 all_nodes) all_nodes
+
+  #eval nodes
+
+end RaftTest
