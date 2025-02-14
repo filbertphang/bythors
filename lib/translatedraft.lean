@@ -177,6 +177,9 @@ def moreUpToDate (p1 p2 : Term × Index) : Bool :=
   let (t2, i2) := p2
   (t1 > t2) || ((t1 = t2) && (i1 >= i2))
 
+def wonElection (nodes : List Address) (votes : List Address) : Bool :=
+  nodes.length <= (2 * votes.length)
+
 -- elections
 def tryToBecomeLeader  (state : RaftData) :
   List RaftOutput × RaftData × List (Address × RaftMessage) :=
@@ -318,5 +321,58 @@ def handleRequestVote
         (nextState, Message.RequestVoteReply nextState.currentTerm (candidateId = candidateId'))
     else
       (nextState, Message.RequestVoteReply nextState.currentTerm false)
+
+def handleRequestVoteReply
+  (state : RaftData)
+  (src : Address)
+  (term : Term)
+  (voteGranted : Bool)
+  : RaftData :=
+  if state.currentTerm < term then
+    let nextState := advanceCurrentTerm state term
+    {nextState with type := ServerType.Follower}
+  else if state.currentTerm > term then
+    state
+  else
+    let won := voteGranted && wonElection state.nodes state.votesReceived
+    match state.type with
+    | ServerType.Follower
+    | ServerType.Leader => state
+    | ServerType.Candidate =>
+      let newVotesReceived := (match voteGranted with
+        | true => [src]
+        | false => []) ++ state.votesReceived
+      let newType := match won with
+        | true => ServerType.Leader
+        | false => state.type
+      let newMatchIndex := HashMap.empty.insert state.me (maxIndex state.log)
+      {
+        state with
+        votesReceived := newVotesReceived
+        type := newType
+        matchIndex := newMatchIndex
+        nextIndex := HashMap.empty
+        -- electoralVictories omitted
+      }
+
+def handleMessage
+  (src : Address)
+  (msg : RaftMessage)
+  (state : RaftData)
+  : RaftData × List (Address × RaftMessage) :=
+  match msg with
+  | Message.AppendEntries term leaderId prevLogIndex prevLogTerm entries leaderCommit =>
+    let (nextState, reply) := handleAppendEntries state term leaderId prevLogIndex prevLogTerm entries leaderCommit
+    (nextState, [(src, reply)])
+
+  | Message.AppendEntriesReply term entries result =>
+    handleAppendEntriesReply state src term entries result
+
+  | Message.RequestVote term _candidateId lastLogIndex lastLogTerm =>
+    let (nextState, reply) := handleRequestVote state term src lastLogIndex lastLogTerm
+    (nextState, [(src, reply)])
+
+  | Message.RequestVoteReply term voteGranted =>
+    (handleRequestVoteReply state src term voteGranted, [])
 
 end Raft
