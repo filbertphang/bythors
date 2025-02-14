@@ -5,6 +5,13 @@ open Std (HashMap)
 
 deriving instance Repr for NetworkPacket
 
+namespace HashMap
+  def update? {α : Type u} {β : Type v} [BEq α] [Hashable α] (hm : HashMap α β) (k : α) (f : Option β → β)
+  : HashMap α β :=
+    let v' := f (hm[k]?)
+    hm.insert k v'
+end HashMap
+
 section Raft
 
 -- type parameters and aliases
@@ -153,7 +160,22 @@ def advanceCurrentTerm (state : RaftData) (newTerm : Term) : RaftData :=
     state
 
 def getNextIndex (state : RaftData) (address : Address) : Index :=
-  HashMap.getD state.nextIndex address (maxIndex state.log)
+  state.nextIndex.getD address (maxIndex state.log)
+
+def haveNewEntries
+  (state : RaftData)
+  (entries : List RaftEntry)
+  : Bool :=
+  and
+  (!List.isEmpty entries)
+  (match findAtIndex state.log (maxIndex entries) with
+    | none => true
+    | some entry => !(maxTerm entries = entry.eTerm))
+
+def moreUpToDate (p1 p2 : Term × Index) : Bool :=
+  let (t1, i1) := p1
+  let (t2, i2) := p2
+  (t1 > t2) || ((t1 = t2) && (i1 >= i2))
 
 -- elections
 def tryToBecomeLeader  (state : RaftData) :
@@ -181,16 +203,6 @@ def tryToBecomeLeader  (state : RaftData) :
   ([], newState, packets)
 
 -- message handlers
-def haveNewEntries
-  (state : RaftData)
-  (entries : List RaftEntry)
-  : Bool :=
-  and
-  (!List.isEmpty entries)
-  (match findAtIndex state.log (maxIndex entries) with
-    | none => true
-    | some entry => !(maxTerm entries = entry.eTerm))
-
 def handleAppendEntries
   (state : RaftData)
   (term : Term)
@@ -240,5 +252,71 @@ def handleAppendEntries
             type := ServerType.Follower
             leaderId := some leaderId
           }, Message.AppendEntriesReply term entries true)
+
+def handleAppendEntriesReply
+  (state : RaftData)
+  (src : Address)
+  (term : Term)
+  (entries : List RaftEntry)
+  (result : Bool)
+  -- TODO: impl with packets too
+  : RaftData × List (Address × RaftMessage) :=
+  if state.currentTerm = term then
+    if result then
+      let index := maxIndex entries
+      let newMatchIndex :=
+        HashMap.update?
+        state.matchIndex
+        src
+        (λ idxOpt ↦ max (idxOpt.getD 0) index)
+      let newNextIndex :=
+        state.nextIndex.insert
+        src
+        (max (getNextIndex state src) (index + 1))
+      ({
+        state with
+        matchIndex := newMatchIndex
+        nextIndex := newNextIndex
+      }, [])
+    else
+      let newNextIndex :=
+        state.nextIndex.insert
+        src
+        ((getNextIndex state src) - 1)
+      ({
+        state with
+        nextIndex := newNextIndex
+      }, [])
+  else if state.currentTerm < term then
+    -- leader behind, convert to follower
+    (advanceCurrentTerm state term, [])
+  else
+    -- follower behind, ignore
+    (state, [])
+
+def handleRequestVote
+  (state : RaftData)
+  (term : Term)
+  (candidateId : Address)
+  (lastLogIndex : Index)
+  (lastLogTerm : Term)
+  : RaftData × RaftMessage :=
+  if state.currentTerm > term then
+    (state, Message.RequestVoteReply state.currentTerm false)
+  else
+    let nextState := advanceCurrentTerm state term
+    if (nextState.leaderId.isNone)
+      && (moreUpToDate (lastLogTerm, lastLogIndex) ((maxTerm nextState.log), (maxIndex nextState.log)))
+    then
+      match nextState.votedFor with
+      | none =>
+        ({
+          nextState with
+          votedFor := some candidateId
+        }, Message.RequestVoteReply nextState.currentTerm true)
+      | some candidateId' =>
+        (nextState, Message.RequestVoteReply nextState.currentTerm (candidateId = candidateId'))
+    else
+      (nextState, Message.RequestVoteReply nextState.currentTerm false)
 
 end Raft
