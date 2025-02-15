@@ -53,3 +53,13 @@ lean_lib «ReliableBroadcast» {
 lean_lib «ReliableBroadcastConcrete» {
   defaultFacets := #[`fatStatic]
 }
+
+@[default_target]
+lean_lib «Raft» {
+  defaultFacets := #[LeanLib.sharedFacet]
+}
+
+@[default_target]
+lean_lib «RaftConcrete» {
+  defaultFacets := #[`fatStatic]
+}

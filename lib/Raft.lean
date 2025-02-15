@@ -3,11 +3,10 @@ import LeanSts.BFT.Network
 
 open Lean (AssocList)
 
+-- TODO: maybe define a packet type, and replace `List (Address × RaftMessage)` with `List Packet`
 deriving instance Repr for NetworkPacket
 
--- this implementation of Raft translated from verdi-raft
-section Raft
-
+-- adding some helpers for association lists to make life easier
 namespace Lean.AssocList
   -- structure is effectively identical to List.hasDecEq
   -- see: https://github.com/leanprover/lean4/blob/93d4ae6635c0c755c9f7368f9b99483d4557b7a6/src/Init/Prelude.lean#L2328-L2339
@@ -39,8 +38,10 @@ namespace Lean.AssocList
   def update [BEq α] (xs : AssocList α β) (a : α) (f : Option β → β)
   : AssocList α β  :=
      xs.replace a (f (xs.find? a))
-
 end Lean.AssocList
+
+-- this implementation of Raft translated from verdi-raft
+section Raft
 
 -- type parameters and aliases
 
