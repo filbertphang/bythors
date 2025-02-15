@@ -5,6 +5,7 @@ open Lean (AssocList)
 
 deriving instance Repr for NetworkPacket
 
+-- this implementation of Raft translated from verdi-raft
 section Raft
 
 namespace Lean.AssocList
