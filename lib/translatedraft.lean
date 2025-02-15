@@ -5,22 +5,17 @@ open Std (HashMap)
 
 deriving instance Repr for NetworkPacket
 
-namespace HashMap
-  def update? {α : Type u} {β : Type v} [BEq α] [Hashable α] (hm : HashMap α β) (k : α) (f : Option β → β)
-  : HashMap α β :=
-    let v' := f (hm[k]?)
-    hm.insert k v'
-end HashMap
-
 section Raft
 
 -- type parameters and aliases
 
-variable {Address Value : Type}
-variable [dec_addr : DecidableEq Address] [dec_value : DecidableEq Value]
+variable {Address Value StateMachineData  : Type}
+variable [dec_addr : DecidableEq Address] [dec_value : DecidableEq Value] [dec_smd : DecidableEq StateMachineData]
 variable [repr_addr : Repr Address] [repr_value : Repr Value]
 variable [hashable_addr : Hashable Address]
+variable [beq_addr : BEq Address]
 variable [inhabited_value : Inhabited Value]
+
 
 @[reducible] def ClientId := Nat
 @[reducible] def InputId := Nat
@@ -36,7 +31,7 @@ structure Entry :=
   eIndex : Index
   eTerm : Term
   eInput : Value
-deriving Repr
+deriving Repr, DecidableEq
 
 local notation "RaftEntry" => (@Entry Address Value)
 
@@ -61,7 +56,7 @@ inductive Message
     (term : Term)
     (entries : List RaftEntry)
     (success : Bool)
-deriving Repr
+deriving Repr, DecidableEq
 
 local notation "RaftMessage" => (@Message Address Value)
 
@@ -71,6 +66,7 @@ inductive Input
     (client : ClientId)
     (inputId : InputId)
     (input : Value)
+deriving Repr, DecidableEq
 
 inductive Output
   | NotLeader
@@ -80,15 +76,21 @@ inductive Output
     (client : ClientId)
     (inputId : InputId)
     (output : Value)
+deriving Repr, DecidableEq
 
 local notation "RaftInput" => (@Input Value)
-local notation "RaftOutput" => (@Input Value)
+local notation "RaftOutput" => (@Output Value)
+
+-- cannot use `RaftOutput` here, because it gets treated as a
+-- type parameter instead of the concrete type
+-- (something with 'hygiene', and not substituting the local notation correctly?)
+variable (callback : Value → StateMachineData → Value × StateMachineData)
 
 inductive ServerType
   | Leader
   | Follower
   | Candidate
-deriving Repr
+deriving Repr, DecidableEq
 
 structure Data :=
   -- (* persistent *)
@@ -101,11 +103,11 @@ structure Data :=
   lastApplied : Index
 
   -- TODO: model stateMachine
-  -- stateMachine : sorry
+  stateMachine : StateMachineData
 
   -- (* leader state *)
-  nextIndex :  HashMap Address Index
-  matchIndex : HashMap Address Index
+  nextIndex :  @HashMap Address Index beq_addr hashable_addr
+  matchIndex :  @HashMap Address Index beq_addr hashable_addr
   shouldSend : Bool
 
   -- (* candidate state *)
@@ -117,13 +119,15 @@ structure Data :=
   nodes : List Address
 
   -- (* client request state *)
-  clientCache : List (ClientId × (InputId × RaftOutput))
+  -- clientCache : HashMap ClientId (InputId × Value)
 
   -- (* ghost variables *)
   -- (omitted, because this should be for proofs only)
   -- electoralVictories : list (term * list name * list entry)
+deriving DecidableEq
 
-local notation "RaftData" => (@Data Address Value dec_addr hashable_addr)
+local notation "RaftData" => (@Data Address Value StateMachineData dec_addr hashable_addr)
+
 
 -- helper functions
 def findAtIndex (entries : List RaftEntry) (i : Index) : Option RaftEntry :=
@@ -374,5 +378,132 @@ def handleMessage
 
   | Message.RequestVoteReply term voteGranted =>
     (handleRequestVoteReply state src term voteGranted, [])
+
+
+-- client handling
+-- `callback` as an explicit argument here is a little weird,
+-- but i guess we have to deal with it
+def applyEntry
+  (state : RaftData)
+  (entry : RaftEntry)
+  : RaftData × List Value :=
+  let (output, newStateMachine) := callback (entry.eInput) (state.stateMachine)
+  let newClientCache :=
+    state.clientCache.insert entry.eClient (entry.eId, output)
+  ({
+    state with
+    clientCache := newClientCache
+    stateMachine := newStateMachine
+  }, [output])
+
+def cacheApplyEntry
+  (state : RaftData)
+  (entry : RaftEntry)
+  : RaftData × List Value :=
+  match state.clientCache[entry.eClient]? with
+  -- | none => applyEntry state entry
+  | some (id, output) =>
+    if entry.eId < id then
+      (state, [])
+    else
+      if entry.eId = id then
+        (state, [output])
+      else
+        applyEntry callback state entry
+  | none =>
+    applyEntry callback state entry
+
+def applyEntries
+  (node : Address)
+  (state : RaftData)
+  (entries : List RaftEntry)
+  : RaftData × List RaftOutput :=
+  entries.foldr
+    (λ entry (st_acc, out_acc) ↦
+      let (_st, out) := cacheApplyEntry callback state entry
+      let out' :=
+        if entry.eAt = node then
+          out.map (λ output ↦ Output.ClientResponse entry.eClient entry.eId output)
+        else
+          []
+      (st_acc, out' ++ out_acc)
+    )
+    (state, [])
+
+-- todo: what is this for?
+def doGenericServer
+  (node : Address)
+  (state : RaftData)
+  : RaftData × List RaftOutput × List (Address × RaftMessage) :=
+  let (state, out) := applyEntries callback node state
+    (findGtIndex state.log state.lastApplied
+     |> List.filter (λ entry ↦
+       (state.lastApplied < entry.eIndex)
+       && (entry.eIndex <= state.commitIndex))
+     |> List.reverse)
+  let newLastApplied := max state.commitIndex state.lastApplied
+  ({state with lastApplied := newLastApplied}, out, [])
+
+-- todo: what is this for?
+def replicaMessage
+  (state : RaftData)
+  (host : Address)
+  : Address × RaftMessage :=
+  let prevIndex := (getNextIndex state host) - 1
+  let prevTerm := match (findAtIndex state.log prevIndex) with
+    | none => 0
+    | some entry => entry.eTerm
+  let newEntries := findGtIndex state.log prevIndex
+  (host, Message.AppendEntries state.currentTerm state.me prevIndex prevTerm newEntries state.commitIndex)
+
+def haveQuorum
+  (state : RaftData)
+  (N : Index)
+  : Bool :=
+  let nodesWithHigherMatchIndex := state.nodes.filter (λ h ↦ N ≤ state.matchIndex.getD h 0)
+  2 * nodesWithHigherMatchIndex.length > state.nodes.length
+
+def advanceCommitIndex (state : RaftData) : RaftData :=
+  let entriesToCommit :=
+    state.commitIndex
+    |> findGtIndex state.log
+    |> List.filter
+        (λ entry ↦
+          (state.currentTerm = entry.eTerm)
+          && (state.commitIndex < entry.eIndex)
+          && (haveQuorum state entry.eIndex))
+  let newCommitIndex :=
+    entriesToCommit
+    |> List.map (λ entry ↦ entry.eIndex)
+    |> List.foldl max state.commitIndex
+  {state with commitIndex := newCommitIndex}
+
+def doLeader
+  (state : RaftData)
+  : RaftData × List RaftOutput × List (Address × RaftMessage) :=
+  match state.type with
+  | ServerType.Follower
+  | ServerType.Candidate => (state, [], [])
+  | ServerType.Leader =>
+    let state' := advanceCommitIndex state
+    match state'.shouldSend with
+    | false => (state', [], [])
+    | true =>
+      let state'' := {state' with shouldSend := false}
+      let replicaMessages :=
+        state''.nodes
+        |> List.filter (λ addr ↦ addr ≠ state''.me)
+        |> List.map (replicaMessage state'')
+      (state'', [], replicaMessages)
+
+def RaftNetHandler
+  (src : Address)
+  (msg : RaftMessage)
+  (state : RaftData)
+  : sorry :=
+  let (state, pkts) := handleMessage src msg state
+  let (state', leaderOut, leaderPkts) := doLeader state
+  let (state'', genericOut, genericPkts) := doGenericServer state'.me state'
+  sorry
 
 end Raft
