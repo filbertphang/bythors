@@ -119,6 +119,7 @@ local notation "RaftOutput" => (@Output Value)
 -- type parameter instead of the concrete type
 -- (something with 'hygiene', and not substituting the local notation correctly?)
 variable (callback : Value → StateMachineData → Value × StateMachineData)
+variable (smdInit : StateMachineData)
 
 inductive ServerType
   | Leader
@@ -220,7 +221,7 @@ def wonElection (nodes : List Address) (votes : List Address) : Bool :=
 
 -- elections
 def tryToBecomeLeader  (state : RaftData) :
-  List RaftOutput × RaftData × List (Address × RaftMessage) :=
+  RaftData × List RaftOutput × List (Address × RaftMessage) :=
   let nextTerm := state.currentTerm + 1
   let newState := {
     state with
@@ -241,7 +242,7 @@ def tryToBecomeLeader  (state : RaftData) :
       (maxIndex state.log)
       (maxTerm state.log)
     ))
-  ([], newState, packets)
+  (newState, [], packets)
 
 -- message handlers
 def handleAppendEntries
@@ -533,10 +534,89 @@ def RaftNetHandler
   (src : Address)
   (msg : RaftMessage)
   (state : RaftData)
-  : sorry :=
+  : (RaftData × List RaftOutput × List (Address × RaftMessage)) :=
   let (state, pkts) := handleMessage src msg state
   let (state', leaderOut, leaderPkts) := doLeader state
   let (state'', genericOut, genericPkts) := doGenericServer callback state'.me state'
-  sorry
+  (state'', leaderOut ++ genericOut, pkts ++ leaderPkts ++ genericPkts)
+
+def handleClientRequest
+  (state : RaftData)
+  (client : ClientId)
+  (id : InputId)
+  (input : Value)
+  : (RaftData × List RaftOutput × List (Address × RaftMessage)) :=
+  match state.type with
+  | ServerType.Follower
+  | ServerType.Candidate => (state, [Output.NotLeader client id], [])
+  | ServerType.Leader =>
+    let index := maxIndex state.log + 1
+    let newEntry : RaftEntry := {
+      eAt := state.me
+      eClient := client
+      eId := id
+      eIndex := index
+      eTerm := state.currentTerm
+      eInput := input
+    }
+    let newState := {
+      state with
+      log := (newEntry :: state.log)
+      matchIndex := (state.matchIndex.replace state.me index)
+      shouldSend := true
+    }
+    (newState, [], [])
+
+def handleTimeout (state : RaftData)
+  : (RaftData × List RaftOutput × List (Address × RaftMessage)) :=
+  match state.type with
+  | ServerType.Follower
+  | ServerType.Candidate => tryToBecomeLeader state
+  | ServerType.Leader =>
+    ({state with shouldSend := true}, [], [])
+
+def handleInput (input : RaftInput) (state : RaftData)
+  : (RaftData × List RaftOutput × List (Address × RaftMessage)) :=
+  match input with
+  | Input.Timeout => handleTimeout state
+  | Input.ClientRequest client id input => handleClientRequest state client id input
+
+def RaftInputHandler (input : RaftInput) (state : RaftData)
+  : (RaftData × List RaftOutput × List (Address × RaftMessage)) :=
+  let (state', handlerOut, pkts) := handleInput input state
+  let (state'', leaderOut, leaderPkts) := doLeader state'
+  let (state''', genericOut, genericPkts) := doGenericServer callback state''.me state''
+  (state''' ,
+  handlerOut ++ leaderOut ++ genericOut,
+  pkts ++ leaderPkts ++ genericPkts)
+
+def reboot (state : RaftData) : RaftData :=
+  {
+    state with
+    nextIndex := AssocList.empty
+    matchIndex := AssocList.empty
+    shouldSend := false
+    votesReceived := []
+    type := ServerType.Follower
+  }
+
+def init_handlers (me : Address) (nodes : List Address) : RaftData :=
+  {
+    currentTerm := 0
+    votedFor := none
+    leaderId := none
+    log := []
+    commitIndex := 0
+    lastApplied := 0
+    stateMachine := smdInit
+    nextIndex :=  AssocList.empty
+    matchIndex := AssocList.empty
+    shouldSend := false
+    votesReceived := []
+    type := ServerType.Follower
+    me := me
+    nodes := nodes
+    clientCache := AssocList.empty
+  }
 
 end Raft
