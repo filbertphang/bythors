@@ -1,9 +1,6 @@
-import LeanSts.State
 import LeanSts.BFT.Network
 
 open Lean (AssocList)
-
--- TODO: maybe define a packet type, and replace `List (Address × RaftMessage)` with `List Packet`
 deriving instance Repr for NetworkPacket
 
 -- adding some helpers for association lists to make life easier
@@ -85,7 +82,6 @@ inductive Message
     (leaderId : Address)
     (prevLogIndex : Index)
     (prevLogTerm : Term)
-    -- TODO: think about how to represent entries
     (entries : List RaftEntry)
     (leaderCommit : Index)
   | AppendEntriesReply
@@ -95,6 +91,7 @@ inductive Message
 deriving Repr, DecidableEq
 
 local notation "RaftMessage" => (@Message Address Value)
+local notation "RaftPacket" => (@Packet Address RaftMessage)
 
 inductive Input
   | Timeout
@@ -167,6 +164,14 @@ local notation "RaftData" => (@Data Address Value StateMachineData)
 
 
 -- helper functions
+def makePacket (src dst : Address) (msg : RaftMessage) : RaftPacket :=
+  {
+    src
+    dst
+    msg
+    consumed := false
+  }
+
 def findAtIndex (entries : List RaftEntry) (i : Index) : Option RaftEntry :=
   List.find? (λ entry ↦ entry.eIndex = i) entries
 
@@ -223,7 +228,7 @@ def wonElection (nodes : List Address) (votes : List Address) : Bool :=
 
 -- elections
 def tryToBecomeLeader  (state : RaftData) :
-  RaftData × List RaftOutput × List (Address × RaftMessage) :=
+  RaftData × List RaftOutput × List RaftPacket :=
   let nextTerm := state.currentTerm + 1
   let newState := {
     state with
@@ -232,13 +237,10 @@ def tryToBecomeLeader  (state : RaftData) :
     votesReceived := [state.me]
     currentTerm := nextTerm
   }
-  -- TODO: replace packet implementation with LeanSts Packet
-  -- (because that's how we implement it on the rust side)
   let packets :=
     state.nodes
     |> List.filter (λ node ↦ node ≠ state.me)
-    |> List.map (λ node ↦ (node,
-      Message.RequestVote
+    |> List.map (λ dstNode ↦ makePacket state.me dstNode (Message.RequestVote
       nextTerm
       state.me
       (maxIndex state.log)
@@ -303,8 +305,7 @@ def handleAppendEntriesReply
   (term : Term)
   (entries : List RaftEntry)
   (result : Bool)
-  -- TODO: impl with packets too
-  : RaftData × List (Address × RaftMessage) :=
+  : RaftData × List RaftPacket :=
   if state.currentTerm = term then
     if result then
       let index := maxIndex entries
@@ -399,22 +400,21 @@ def handleMessage
   (src : Address)
   (msg : RaftMessage)
   (state : RaftData)
-  : RaftData × List (Address × RaftMessage) :=
+  : RaftData × List RaftPacket :=
   match msg with
   | Message.AppendEntries term leaderId prevLogIndex prevLogTerm entries leaderCommit =>
     let (nextState, reply) := handleAppendEntries state term leaderId prevLogIndex prevLogTerm entries leaderCommit
-    (nextState, [(src, reply)])
+    (nextState, [makePacket state.me src reply])
 
   | Message.AppendEntriesReply term entries result =>
     handleAppendEntriesReply state src term entries result
 
   | Message.RequestVote term _candidateId lastLogIndex lastLogTerm =>
     let (nextState, reply) := handleRequestVote state term src lastLogIndex lastLogTerm
-    (nextState, [(src, reply)])
+    (nextState, [makePacket state.me src reply])
 
   | Message.RequestVoteReply term voteGranted =>
     (handleRequestVoteReply state src term voteGranted, [])
-
 
 -- client handling
 -- `callback` as an explicit argument here is a little weird,
@@ -466,11 +466,10 @@ def applyEntries
     )
     (state, [])
 
--- todo: what is this for?
 def doGenericServer
   (node : Address)
   (state : RaftData)
-  : RaftData × List RaftOutput × List (Address × RaftMessage) :=
+  : RaftData × List RaftOutput × List RaftPacket :=
   let (state, out) := applyEntries callback node state
     (findGtIndex state.log state.lastApplied
      |> List.filter (λ entry ↦
@@ -480,17 +479,17 @@ def doGenericServer
   let newLastApplied := max state.commitIndex state.lastApplied
   ({state with lastApplied := newLastApplied}, out, [])
 
--- todo: what is this for?
 def replicaMessage
   (state : RaftData)
   (host : Address)
-  : Address × RaftMessage :=
+  : RaftPacket :=
   let prevIndex := (getNextIndex state host) - 1
   let prevTerm := match (findAtIndex state.log prevIndex) with
     | none => 0
     | some entry => entry.eTerm
   let newEntries := findGtIndex state.log prevIndex
-  (host, Message.AppendEntries state.currentTerm state.me prevIndex prevTerm newEntries state.commitIndex)
+  let msg := Message.AppendEntries state.currentTerm state.me prevIndex prevTerm newEntries state.commitIndex
+  makePacket state.me host msg
 
 def haveQuorum
   (state : RaftData)
@@ -516,7 +515,7 @@ def advanceCommitIndex (state : RaftData) : RaftData :=
 
 def doLeader
   (state : RaftData)
-  : RaftData × List RaftOutput × List (Address × RaftMessage) :=
+  : RaftData × List RaftOutput × List RaftPacket :=
   match state.type with
   | ServerType.Follower
   | ServerType.Candidate => (state, [], [])
@@ -536,7 +535,7 @@ def RaftNetHandler
   (src : Address)
   (msg : RaftMessage)
   (state : RaftData)
-  : (RaftData × List RaftOutput × List (Address × RaftMessage)) :=
+  : (RaftData × List RaftOutput × List RaftPacket) :=
   let (state, pkts) := handleMessage src msg state
   let (state', leaderOut, leaderPkts) := doLeader state
   let (state'', genericOut, genericPkts) := doGenericServer callback state'.me state'
@@ -547,7 +546,7 @@ def handleClientRequest
   (client : ClientId)
   (id : InputId)
   (input : Value)
-  : (RaftData × List RaftOutput × List (Address × RaftMessage)) :=
+  : (RaftData × List RaftOutput × List RaftPacket) :=
   match state.type with
   | ServerType.Follower
   | ServerType.Candidate => (state, [Output.NotLeader client id], [])
@@ -570,7 +569,7 @@ def handleClientRequest
     (newState, [], [])
 
 def handleTimeout (state : RaftData)
-  : (RaftData × List RaftOutput × List (Address × RaftMessage)) :=
+  : (RaftData × List RaftOutput × List RaftPacket) :=
   match state.type with
   | ServerType.Follower
   | ServerType.Candidate => tryToBecomeLeader state
@@ -578,13 +577,13 @@ def handleTimeout (state : RaftData)
     ({state with shouldSend := true}, [], [])
 
 def handleInput (input : RaftInput) (state : RaftData)
-  : (RaftData × List RaftOutput × List (Address × RaftMessage)) :=
+  : (RaftData × List RaftOutput × List RaftPacket) :=
   match input with
   | Input.Timeout => handleTimeout state
   | Input.ClientRequest client id input => handleClientRequest state client id input
 
 def RaftInputHandler (input : RaftInput) (state : RaftData)
-  : (RaftData × List RaftOutput × List (Address × RaftMessage)) :=
+  : (RaftData × List RaftOutput × List RaftPacket) :=
   let (state', handlerOut, pkts) := handleInput input state
   let (state'', leaderOut, leaderPkts) := doLeader state'
   let (state''', genericOut, genericPkts) := doGenericServer callback state''.me state''
