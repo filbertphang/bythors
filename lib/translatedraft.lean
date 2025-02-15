@@ -1,11 +1,45 @@
 import LeanSts.State
 import LeanSts.BFT.Network
 
-open Std (HashMap)
+open Lean (AssocList)
 
 deriving instance Repr for NetworkPacket
 
 section Raft
+
+namespace Lean.AssocList
+  -- structure is effectively identical to List.hasDecEq
+  -- see: https://github.com/leanprover/lean4/blob/93d4ae6635c0c755c9f7368f9b99483d4557b7a6/src/Init/Prelude.lean#L2328-L2339
+  def hasDecEq
+    {α : Type u} {β : Type v}
+    [DecidableEq α] [DecidableEq β]
+    : (a b : AssocList α β) → Decidable (a = b)
+      | .nil, .nil => isTrue rfl
+      | .cons _ _ _, .nil => isFalse (fun h => AssocList.noConfusion h)
+      | .nil, .cons _ _ _ => isFalse (fun h => AssocList.noConfusion h)
+      | .cons ka va as, .cons kb vb bs =>
+        match decEq ka kb with
+        | isFalse nkab => isFalse (fun h => AssocList.noConfusion h (fun hkab _ _ => absurd hkab nkab))
+        | isTrue hkab => match decEq va vb with
+          | isFalse nvab => isFalse (fun h => AssocList.noConfusion h (fun _ hvab _ => absurd hvab nvab))
+          | isTrue hvab => match AssocList.hasDecEq as bs with
+            | isFalse nsab => isFalse (fun h => AssocList.noConfusion h (fun _ _ hsab => absurd hsab nsab))
+            | isTrue hsab => isTrue (hsab ▸ hvab ▸ hkab ▸ rfl)
+
+  instance {α : Type u} {β : Type v}
+    [DecidableEq α] [DecidableEq β]
+    : DecidableEq (AssocList α β) := hasDecEq
+
+  def getD [BEq α] (xs : AssocList α β) (a : α) (default : β): β :=
+    match xs.find? a with
+    | some b => b
+    | none => default
+
+  def update [BEq α] (xs : AssocList α β) (a : α) (f : Option β → β)
+  : AssocList α β  :=
+     xs.replace a (f (xs.find? a))
+
+end Lean.AssocList
 
 -- type parameters and aliases
 
@@ -106,8 +140,8 @@ structure Data :=
   stateMachine : StateMachineData
 
   -- (* leader state *)
-  nextIndex :  @HashMap Address Index beq_addr hashable_addr
-  matchIndex :  @HashMap Address Index beq_addr hashable_addr
+  nextIndex :  AssocList Address Index
+  matchIndex : AssocList Address Index
   shouldSend : Bool
 
   -- (* candidate state *)
@@ -119,14 +153,14 @@ structure Data :=
   nodes : List Address
 
   -- (* client request state *)
-  -- clientCache : HashMap ClientId (InputId × Value)
+  clientCache : AssocList ClientId (InputId × Value)
 
   -- (* ghost variables *)
   -- (omitted, because this should be for proofs only)
   -- electoralVictories : list (term * list name * list entry)
 deriving DecidableEq
 
-local notation "RaftData" => (@Data Address Value StateMachineData dec_addr hashable_addr)
+local notation "RaftData" => (@Data Address Value StateMachineData)
 
 
 -- helper functions
@@ -272,8 +306,7 @@ def handleAppendEntriesReply
     if result then
       let index := maxIndex entries
       let newMatchIndex :=
-        HashMap.update?
-        state.matchIndex
+        state.matchIndex.update
         src
         (λ idxOpt ↦ max (idxOpt.getD 0) index)
       let newNextIndex :=
@@ -349,13 +382,13 @@ def handleRequestVoteReply
       let newType := match won with
         | true => ServerType.Leader
         | false => state.type
-      let newMatchIndex := HashMap.empty.insert state.me (maxIndex state.log)
+      let newMatchIndex := AssocList.empty.insert state.me (maxIndex state.log)
       {
         state with
         votesReceived := newVotesReceived
         type := newType
         matchIndex := newMatchIndex
-        nextIndex := HashMap.empty
+        nextIndex := AssocList.empty
         -- electoralVictories omitted
       }
 
@@ -400,7 +433,7 @@ def cacheApplyEntry
   (state : RaftData)
   (entry : RaftEntry)
   : RaftData × List Value :=
-  match state.clientCache[entry.eClient]? with
+  match state.clientCache.find? entry.eClient with
   -- | none => applyEntry state entry
   | some (id, output) =>
     if entry.eId < id then
@@ -503,7 +536,7 @@ def RaftNetHandler
   : sorry :=
   let (state, pkts) := handleMessage src msg state
   let (state', leaderOut, leaderPkts) := doLeader state
-  let (state'', genericOut, genericPkts) := doGenericServer state'.me state'
+  let (state'', genericOut, genericPkts) := doGenericServer callback state'.me state'
   sorry
 
 end Raft
