@@ -57,6 +57,7 @@ def check_output
   state.clientCache.find? index
   |> Option.map (λ (_, v) ↦ v)
 
+-- convenience functions
 @[export create_entry]
 def create_entry
   (eAt : ConcreteAddress)
@@ -74,3 +75,34 @@ def create_entry
     eTerm
     eInput
   }
+
+@[export create_requestvote]
+def create_requestvote
+  (term : Term)
+  (candidateId : ConcreteAddress)
+  (lastLogIndex : Index)
+  (lastLogTerm : Term)
+  : ConcreteRaftMessage := Message.RequestVote term candidateId lastLogIndex lastLogTerm
+
+@[export create_requestvotereply]
+def create_requestvotereply
+  (term : Term)
+  (voteGranted : Bool)
+  : ConcreteRaftMessage := Message.RequestVoteReply term voteGranted
+
+@[export create_appendentriesreply]
+def create_appendentriesreply
+  (term : Term)
+  (leaderId : ConcreteAddress)
+  (prevLogIndex : Index)
+  (prevLogTerm : Term)
+  (entries : List ConcreteRaftEntry)
+  (leaderCommit : Index)
+  : ConcreteRaftMessage := Message.AppendEntries term leaderId prevLogIndex prevLogTerm entries leaderCommit
+
+@[export create_appendentries]
+def create_appendentries
+  (term : Term)
+  (entries : List ConcreteRaftEntry)
+  (success : Bool)
+  : ConcreteRaftMessage := Message.AppendEntriesReply term entries success

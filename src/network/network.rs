@@ -184,7 +184,7 @@ where
         // (probably has to do with the address passed into `check_output`)
         // check for consensus for this round
         unsafe {
-            let output_opt = round_opt.map(|r| self.protocol.check_output(r)).flatten();
+            let output_opt = round_opt.and_then(|r| self.protocol.check_output(r));
             match Option::zip(output_opt, round_opt) {
                 None => {}
                 // consensus reached: trigger callback

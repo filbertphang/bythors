@@ -28,4 +28,28 @@ extern "C" {
         e_term: lean_obj_arg,
         e_input: lean_obj_arg,
     ) -> lean_obj_res;
+
+    pub fn create_requestvote(
+        term: lean_obj_arg,
+        candidate_id: lean_obj_arg,
+        last_log_index: lean_obj_arg,
+        last_log_term: lean_obj_arg,
+    ) -> lean_obj_res;
+
+    pub fn create_requestvotereply(term: lean_obj_arg, vote_granted: u8) -> lean_obj_res;
+
+    pub fn create_appendentries(
+        term: lean_obj_arg,
+        leader_id: lean_obj_arg,
+        prev_log_index: lean_obj_arg,
+        prev_log_term: lean_obj_arg,
+        entries: lean_obj_arg,
+        leader_commit: lean_obj_arg,
+    ) -> lean_obj_res;
+
+    pub fn create_appendentriesreply(
+        term: lean_obj_arg,
+        entries: lean_obj_arg,
+        success: u8,
+    ) -> lean_obj_res;
 }

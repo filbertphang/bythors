@@ -1,5 +1,7 @@
 use lean_sys::*;
 
+use crate::marshal::core::lean_dec_cond;
+
 /// Indexes into an array.
 /// This increments the reference count of the indexed object, and the user
 /// is responsible for decrementing it when they are done with the object.
@@ -32,4 +34,24 @@ pub unsafe fn rust_vec_to_lean_array<T>(
         lean_array_push(arr, lean_elem);
     }
     arr
+}
+
+pub unsafe fn lean_array_to_rust_vec<T>(
+    arr: *mut lean_object,
+    convert: unsafe fn(*mut lean_object) -> T,
+    dec_refcount: bool,
+) -> Vec<T> {
+    assert!(lean_is_array(arr));
+    let len = lean_array_size(arr);
+    let mut vec = Vec::new();
+
+    for i in 0..len {
+        let lean_elem = lean_array_uget(arr, i);
+        vec.push(convert(lean_elem));
+    }
+
+    // conditionally decrement refcount
+    lean_dec_cond(arr, dec_refcount);
+
+    vec
 }

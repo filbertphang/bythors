@@ -9,3 +9,10 @@ pub unsafe fn lean_dec_cond(o: *mut lean_object, dec_refcount: bool) {
         true => lean_dec(o),
     }
 }
+
+pub fn bool_to_u8(b: bool) -> u8 {
+    match b {
+        true => 1,
+        false => 0,
+    }
+}

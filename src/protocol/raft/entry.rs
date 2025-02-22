@@ -8,10 +8,10 @@ use lean_sys::*;
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct RaftEntry {
     e_at: String,
-    e_client: usize, // stored as nat
-    e_id: usize,     // stored as nat
-    e_index: usize,  // stored as nat
-    e_term: usize,   // stored as nat
+    pub e_client: usize, // stored as nat
+    e_id: usize,         // stored as nat
+    e_index: usize,      // stored as nat
+    e_term: usize,       // stored as nat
     e_input: String,
 }
 
@@ -22,7 +22,7 @@ impl std::fmt::Display for RaftEntry {
 }
 
 impl RaftEntry {
-    unsafe fn from_lean(entry_lean: *mut lean_object, dec_refcount: bool) -> Self {
+    pub unsafe fn from_lean(entry_lean: *mut lean_object, dec_refcount: bool) -> Self {
         let e_at_lean = lean_ctor_get(entry_lean, 0);
         let e_client_lean = lean_ctor_get(entry_lean, 1);
         let e_id_lean = lean_ctor_get(entry_lean, 2);
@@ -52,7 +52,7 @@ impl RaftEntry {
     }
 
     // Takes ownership of the Rust Message.
-    unsafe fn to_lean(self) -> *mut lean_object {
+    pub unsafe fn to_lean(self) -> *mut lean_object {
         let e_at = rust_string_to_lean(self.e_at);
         let e_input = rust_string_to_lean(self.e_input);
 
