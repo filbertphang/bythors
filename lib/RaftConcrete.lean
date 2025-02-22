@@ -11,7 +11,7 @@ import Raft
 @[reducible] def ConcreteAddress := String
 @[reducible] def ConcreteValue := String
 
--- temporarily instantiate state machine as the identity machine
+-- instantiate state machine as the identity machine
 @[reducible] def ConcreteStateMachineData := Unit
 def smdInit := ()
 
@@ -24,25 +24,53 @@ abbrev ConcreteRaftOutput := @Output ConcreteValue
 abbrev ConcreteRaftPacket := @Packet ConcreteAddress ConcreteRaftMessage
 
 -- callback function for when consensus is reached on a log entry
-@[extern "run_state_machine"]
-opaque run_state_machine : ConcreteValue → ConcreteStateMachineData → ConcreteValue × ConcreteStateMachineData
+-- this is identity, because we want to reach consensus on the input (for now).
+def run_state_machine (v : ConcreteValue) (s : ConcreteStateMachineData)
+  : ConcreteValue × ConcreteStateMachineData :=
+  (v, s)
 
-@[export raft_init]
-def raft_init (me : ConcreteAddress) (nodes : List ConcreteAddress)
+@[export init]
+def init (me : ConcreteAddress) (nodes : List ConcreteAddress)
   : ConcreteRaftData :=
   init_handlers smdInit me nodes
 
-@[export raft_handle_message]
-def raft_handle_message
+@[export handle_message]
+def handle_message
   (state : ConcreteRaftData)
   (src : ConcreteAddress)
   (msg : ConcreteRaftMessage)
   : (ConcreteRaftData × List ConcreteRaftOutput × List ConcreteRaftPacket) :=
   RaftNetHandler run_state_machine src msg state
 
-@[export raft_handle_input]
-def raft_handle_input
+@[export handle_input]
+def handle_input
   (state : ConcreteRaftData)
   (input : ConcreteRaftInput)
   : (ConcreteRaftData × List ConcreteRaftOutput × List ConcreteRaftPacket) :=
   RaftInputHandler run_state_machine input state
+
+@[export check_output]
+def check_output
+  (state : ConcreteRaftData)
+  (index : ClientId)
+  : Option ConcreteValue :=
+  state.clientCache.find? index
+  |> Option.map (λ (_, v) ↦ v)
+
+@[export create_entry]
+def create_entry
+  (eAt : ConcreteAddress)
+  (eClient : ClientId)
+  (eId : InputId)
+  (eIndex : Index)
+  (eTerm : Term)
+  (eInput : ConcreteValue)
+  : ConcreteRaftEntry :=
+  {
+    eAt
+    eClient
+    eId
+    eIndex
+    eTerm
+    eInput
+  }

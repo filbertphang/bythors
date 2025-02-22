@@ -6,10 +6,10 @@ use crate::protocol::Message;
 
 use lean_sys::*;
 
-// note: even though the lean representation looks identical to this enum type,
-// the memory representation is different.
-// since `USize` fields are ordered AFTER `lean_object` fields, each constructor would look like:
-// `| EchoMsg { originator: String, v: String, r: usize }`, and we have to deconstruct it in that order.
+// note: despite what the Lean FFI Manual says about how struct/inductive
+// fields are ordered (non-scalar fields first, then usizes, then other scalars)
+// this does not hold here, likely because each type in the lean
+// implementation is wrapped/aliased.
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub enum RBMessage {
     InitialMsg {

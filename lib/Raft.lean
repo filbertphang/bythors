@@ -152,7 +152,7 @@ structure Data :=
   me : Address
   nodes : List Address
 
-  -- (* client request state *)
+  -- (* map of client request to output value *)
   clientCache : AssocList ClientId (InputId × Value)
 
   -- (* ghost variables *)
@@ -437,7 +437,6 @@ def cacheApplyEntry
   (entry : RaftEntry)
   : RaftData × List Value :=
   match state.clientCache.find? entry.eClient with
-  -- | none => applyEntry state entry
   | some (id, output) =>
     if entry.eId < id then
       (state, [])
