@@ -168,7 +168,7 @@ where
         channel: ResponseChannel<ProtocolResponse>,
     ) {
         let packet = request.packet;
-        let round = packet.get_round();
+        let round_opt = packet.get_round();
 
         // acknowledge the packet
         self.swarm
@@ -184,10 +184,11 @@ where
         // (probably has to do with the address passed into `check_output`)
         // check for consensus for this round
         unsafe {
-            match self.protocol.check_output(round) {
+            let output_opt = round_opt.map(|r| self.protocol.check_output(r)).flatten();
+            match Option::zip(output_opt, round_opt) {
                 None => {}
                 // consensus reached: trigger callback
-                Some(output) => (self.callback)(output, round),
+                Some((output, round)) => (self.callback)(output, round),
             }
         }
     }

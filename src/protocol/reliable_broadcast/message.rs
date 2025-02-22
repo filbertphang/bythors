@@ -43,9 +43,11 @@ impl std::fmt::Display for RBMessage {
 }
 
 impl Message for RBMessage {
-    fn get_round(&self) -> usize {
+    fn get_round(&self) -> Option<usize> {
         match &self {
-            Self::InitialMsg { r, .. } | Self::EchoMsg { r, .. } | Self::VoteMsg { r, .. } => *r,
+            Self::InitialMsg { r, .. } | Self::EchoMsg { r, .. } | Self::VoteMsg { r, .. } => {
+                Some(*r)
+            }
         }
     }
 

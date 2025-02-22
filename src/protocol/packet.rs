@@ -27,7 +27,7 @@ impl<M> Packet<M>
 where
     M: Message,
 {
-    pub fn get_round(&self) -> usize {
+    pub fn get_round(&self) -> Option<usize> {
         self.msg.get_round()
     }
 
