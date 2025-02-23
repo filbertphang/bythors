@@ -21,4 +21,8 @@ pub mod raft {
     mod entry;
     mod lean_extern;
     mod message;
+    mod protocol;
+
+    pub use message::RaftMessage;
+    pub use protocol::Raft;
 }
