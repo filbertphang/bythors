@@ -4,23 +4,29 @@ use lean_sys::{lean_obj_arg, lean_obj_res};
 extern "C" {
     pub fn initialize_RaftConcrete(builtin: u8, world: lean_obj_arg) -> lean_obj_res;
 
-    pub fn init(
+    pub fn raft_init(
         me: lean_obj_arg,    // ConcreteAddress (String)
         nodes: lean_obj_arg, // List ConcreteAddress
     ) -> lean_obj_res; // ConcreteRaftData
 
-    pub fn handle_message(
+    pub fn raft_handle_input(
+        state: lean_obj_arg,     // ConcreteRaftData
+        client_id: lean_obj_arg, // ClientId
+        value: lean_obj_arg,     // ConcreteValue
+    ) -> lean_obj_res; // (ConcreteRaftData, List ConcreteRaftInput, List ConcreteRaftPacket)
+
+    pub fn raft_handle_message(
         state: lean_obj_arg, // ConcreteRaftData
         src: lean_obj_arg,   // ConcreteAddress
         msg: lean_obj_arg,   // ConcreteRaftMessage
     ) -> lean_obj_res; // (ConcreteRaftData, List ConcreteRaftInput, List ConcreteRaftPacket)
 
-    pub fn handle_input(
+    pub fn raft_check_output(
         state: lean_obj_arg, // ConcreteRaftData
-        input: lean_obj_arg, // ConcreteRaftInput
-    ) -> lean_obj_res; // (ConcreteRaftData, List ConcreteRaftInput, List ConcreteRaftPacket)
+        index: lean_obj_arg, // ClientId
+    ) -> lean_obj_res; // Option ConcreteValue
 
-    pub fn create_entry(
+    pub fn raft_create_entry(
         e_at: lean_obj_arg,
         e_client: lean_obj_arg,
         e_id: lean_obj_arg,
@@ -29,16 +35,16 @@ extern "C" {
         e_input: lean_obj_arg,
     ) -> lean_obj_res;
 
-    pub fn create_requestvote(
+    pub fn raft_create_requestvote(
         term: lean_obj_arg,
         candidate_id: lean_obj_arg,
         last_log_index: lean_obj_arg,
         last_log_term: lean_obj_arg,
     ) -> lean_obj_res;
 
-    pub fn create_requestvotereply(term: lean_obj_arg, vote_granted: u8) -> lean_obj_res;
+    pub fn raft_create_requestvotereply(term: lean_obj_arg, vote_granted: u8) -> lean_obj_res;
 
-    pub fn create_appendentries(
+    pub fn raft_create_appendentries(
         term: lean_obj_arg,
         leader_id: lean_obj_arg,
         prev_log_index: lean_obj_arg,
@@ -47,7 +53,7 @@ extern "C" {
         leader_commit: lean_obj_arg,
     ) -> lean_obj_res;
 
-    pub fn create_appendentriesreply(
+    pub fn raft_create_appendentriesreply(
         term: lean_obj_arg,
         entries: lean_obj_arg,
         success: u8,

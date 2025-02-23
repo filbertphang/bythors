@@ -137,7 +137,7 @@ impl Message for RaftMessage {
                 let last_log_index_lean = lean_usize_to_nat(last_log_index);
                 let last_log_term_lean = lean_usize_to_nat(last_log_term);
 
-                lean_extern::create_requestvote(
+                lean_extern::raft_create_requestvote(
                     term_lean,
                     candidate_id_lean,
                     last_log_index_lean,
@@ -148,7 +148,7 @@ impl Message for RaftMessage {
                 let term_lean = lean_usize_to_nat(term);
                 let vote_granted_lean = bool_to_u8(vote_granted);
 
-                lean_extern::create_requestvotereply(term_lean, vote_granted_lean)
+                lean_extern::raft_create_requestvotereply(term_lean, vote_granted_lean)
             }
             Self::AppendEntries {
                 term,
@@ -165,7 +165,7 @@ impl Message for RaftMessage {
                 let entries_lean = rust_vec_to_lean_array(entries, RaftEntry::to_lean);
                 let leader_commit_lean = lean_usize_to_nat(leader_commit);
 
-                lean_extern::create_appendentries(
+                lean_extern::raft_create_appendentries(
                     term_lean,
                     leader_id_lean,
                     prev_log_index_lean,
@@ -183,7 +183,7 @@ impl Message for RaftMessage {
                 let entries_lean = rust_vec_to_lean_array(entries, RaftEntry::to_lean);
                 let success_lean = bool_to_u8(success);
 
-                lean_extern::create_appendentriesreply(term_lean, entries_lean, success_lean)
+                lean_extern::raft_create_appendentriesreply(term_lean, entries_lean, success_lean)
             }
         }
     }

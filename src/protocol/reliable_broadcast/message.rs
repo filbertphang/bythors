@@ -119,7 +119,7 @@ impl Message for RBMessage {
             }
         };
 
-        lean_extern::create_message(
+        lean_extern::rb_create_message(
             tag,
             rust_string_to_lean(originator_r),
             r_r,

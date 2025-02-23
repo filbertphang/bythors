@@ -17,7 +17,7 @@ def smdInit := ()
 
 -- concrete instantiations of Raft types
 abbrev ConcreteRaftEntry := @Entry ConcreteAddress ConcreteValue
-abbrev ConcreteRaftMessage := @Message ConcreteAddress ConcreteValue
+abbrev ConcreteRaftMessage := @MessageRaft ConcreteAddress ConcreteValue
 abbrev ConcreteRaftData := @Data ConcreteAddress ConcreteValue ConcreteStateMachineData
 abbrev ConcreteRaftInput := @Input ConcreteValue
 abbrev ConcreteRaftOutput := @Output ConcreteValue
@@ -29,28 +29,30 @@ def run_state_machine (v : ConcreteValue) (s : ConcreteStateMachineData)
   : ConcreteValue × ConcreteStateMachineData :=
   (v, s)
 
-@[export init]
-def init (me : ConcreteAddress) (nodes : List ConcreteAddress)
+@[export raft_init]
+def raft_init (me : ConcreteAddress) (nodes : List ConcreteAddress)
   : ConcreteRaftData :=
   init_handlers smdInit me nodes
 
-@[export handle_message]
-def handle_message
+@[export raft_handle_input]
+def raft_handle_input
+  (state : ConcreteRaftData)
+  (clientId : ClientId)
+  (value : ConcreteValue)
+  : (ConcreteRaftData × List ConcreteRaftOutput × List ConcreteRaftPacket) :=
+  let input := Input.ClientRequest clientId 0 value
+  RaftInputHandler run_state_machine input state
+
+@[export raft_handle_message]
+def raft_handle_message
   (state : ConcreteRaftData)
   (src : ConcreteAddress)
   (msg : ConcreteRaftMessage)
   : (ConcreteRaftData × List ConcreteRaftOutput × List ConcreteRaftPacket) :=
   RaftNetHandler run_state_machine src msg state
 
-@[export handle_input]
-def handle_input
-  (state : ConcreteRaftData)
-  (input : ConcreteRaftInput)
-  : (ConcreteRaftData × List ConcreteRaftOutput × List ConcreteRaftPacket) :=
-  RaftInputHandler run_state_machine input state
-
-@[export check_output]
-def check_output
+@[export raft_check_output]
+def raft_check_output
   (state : ConcreteRaftData)
   (index : ClientId)
   : Option ConcreteValue :=
@@ -58,8 +60,8 @@ def check_output
   |> Option.map (λ (_, v) ↦ v)
 
 -- convenience functions
-@[export create_entry]
-def create_entry
+@[export raft_create_entry]
+def raft_create_entry
   (eAt : ConcreteAddress)
   (eClient : ClientId)
   (eId : InputId)
@@ -76,33 +78,33 @@ def create_entry
     eInput
   }
 
-@[export create_requestvote]
-def create_requestvote
+@[export raft_create_requestvote]
+def raft_create_requestvote
   (term : Term)
   (candidateId : ConcreteAddress)
   (lastLogIndex : Index)
   (lastLogTerm : Term)
-  : ConcreteRaftMessage := Message.RequestVote term candidateId lastLogIndex lastLogTerm
+  : ConcreteRaftMessage := MessageRaft.RequestVote term candidateId lastLogIndex lastLogTerm
 
-@[export create_requestvotereply]
-def create_requestvotereply
+@[export raft_create_requestvotereply]
+def raft_create_requestvotereply
   (term : Term)
   (voteGranted : Bool)
-  : ConcreteRaftMessage := Message.RequestVoteReply term voteGranted
+  : ConcreteRaftMessage := MessageRaft.RequestVoteReply term voteGranted
 
-@[export create_appendentriesreply]
-def create_appendentriesreply
+@[export raft_create_appendentriesreply]
+def raft_create_appendentriesreply
   (term : Term)
   (leaderId : ConcreteAddress)
   (prevLogIndex : Index)
   (prevLogTerm : Term)
   (entries : List ConcreteRaftEntry)
   (leaderCommit : Index)
-  : ConcreteRaftMessage := Message.AppendEntries term leaderId prevLogIndex prevLogTerm entries leaderCommit
+  : ConcreteRaftMessage := MessageRaft.AppendEntries term leaderId prevLogIndex prevLogTerm entries leaderCommit
 
-@[export create_appendentries]
-def create_appendentries
+@[export raft_create_appendentries]
+def raft_create_appendentries
   (term : Term)
   (entries : List ConcreteRaftEntry)
   (success : Bool)
-  : ConcreteRaftMessage := Message.AppendEntriesReply term entries success
+  : ConcreteRaftMessage := MessageRaft.AppendEntriesReply term entries success

@@ -61,6 +61,6 @@ impl RaftEntry {
         let e_index = lean_usize_to_nat(self.e_index);
         let e_term = lean_usize_to_nat(self.e_term);
 
-        lean_extern::create_entry(e_at, e_client, e_id, e_index, e_term, e_input)
+        lean_extern::raft_create_entry(e_at, e_client, e_id, e_index, e_term, e_input)
     }
 }

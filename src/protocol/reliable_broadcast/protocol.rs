@@ -3,6 +3,7 @@ use super::message::RBMessage;
 
 use crate::globals;
 use crate::marshal::array::{index_lean_array, rust_vec_to_lean_array};
+use crate::marshal::core::lean_option_to_rust;
 use crate::marshal::string::{lean_string_to_rust, rust_string_to_lean};
 use crate::protocol::{Message, Packet, Protocol};
 
@@ -34,7 +35,7 @@ impl Protocol for ReliableBroadcast {
     unsafe fn create(node_list: Vec<String>, address: String, leader: String) -> Self {
         // initialize protocol
         let node_array_lean = rust_vec_to_lean_array(node_list, rust_string_to_lean);
-        let protocol = lean_extern::create_protocol(node_array_lean);
+        let protocol = lean_extern::rb_create_protocol(node_array_lean);
 
         // initialize this node's state
         let node_address_lean = rust_string_to_lean(address);
@@ -43,7 +44,7 @@ impl Protocol for ReliableBroadcast {
         // RC: increment reference count of the protocol object, so that we can continue
         // to use it after the function call.
         lean_inc(protocol);
-        let node_state = lean_extern::init_node_state(protocol, node_address_lean);
+        let node_state = lean_extern::rb_init_node_state(protocol, node_address_lean);
 
         // initialize the global message hashtbl and consensus state
         globals::message_hashtbl::initialize();
@@ -74,7 +75,7 @@ impl Protocol for ReliableBroadcast {
         // and it is safe to free.
         lean_inc(self.protocol);
         let state_and_packets =
-            lean_extern::send_message(self.protocol, self.node_state, self.round);
+            lean_extern::rb_send_message(self.protocol, self.node_state, self.round);
 
         let (new_state, packets_to_send) = deconstruct_state_and_packets(state_and_packets);
 
@@ -105,7 +106,7 @@ impl Protocol for ReliableBroadcast {
         // `node_state`, `src_lean`, and `msg_lean` can be safely discarded after.
         lean_inc(self.protocol);
         let state_and_packets =
-            lean_extern::handle_message(self.protocol, self.node_state, src_lean, msg_lean);
+            lean_extern::rb_handle_message(self.protocol, self.node_state, src_lean, msg_lean);
 
         let (new_state, packets_to_send) = deconstruct_state_and_packets(state_and_packets);
 
@@ -124,7 +125,11 @@ impl Protocol for ReliableBroadcast {
             let leader = rust_string_to_lean(self.leader.clone());
 
             lean_inc(self.node_state);
-            let output_opt_lean = lean_extern::check_output(self.node_state, leader, round);
+            let output_opt_lean = lean_extern::rb_check_output(self.node_state, leader, round);
+            // todo: dec_refcount to true
+            let output =
+                lean_option_to_rust(output_opt_lean, |o| lean_string_to_rust(o, false), false);
+            return output;
 
             // note: the runtime representation of lean4 options are:
             // - none: lean_box(0), which is a scalar

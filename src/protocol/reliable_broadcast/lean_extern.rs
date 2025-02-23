@@ -17,27 +17,28 @@ use lean_sys::{lean_obj_arg, lean_obj_res};
 extern "C" {
     pub fn initialize_ReliableBroadcastConcrete(builtin: u8, world: lean_obj_arg) -> lean_obj_res;
 
-    pub fn create_protocol(node_arr: lean_obj_arg) -> lean_obj_res;
+    pub fn rb_create_protocol(node_arr: lean_obj_arg) -> lean_obj_res;
 
-    pub fn create_message(
+    pub fn rb_create_message(
         tag: usize,
         originator: lean_obj_arg,
         r: usize,
         v: lean_obj_arg,
     ) -> lean_obj_res;
 
-    pub fn init_node_state(p: lean_obj_arg, node_address: lean_obj_arg) -> lean_obj_res;
+    pub fn rb_init_node_state(p: lean_obj_arg, node_address: lean_obj_arg) -> lean_obj_res;
 
-    pub fn send_message(p: lean_obj_arg, node_state: lean_obj_arg, round: usize) -> lean_obj_res;
+    pub fn rb_send_message(p: lean_obj_arg, node_state: lean_obj_arg, round: usize)
+        -> lean_obj_res;
 
-    pub fn handle_message(
+    pub fn rb_handle_message(
         p: lean_obj_arg,
         node_state: lean_obj_arg,
         src: lean_obj_arg,
         msg: lean_obj_arg,
     ) -> lean_obj_res;
 
-    pub fn check_output(
+    pub fn rb_check_output(
         node_state: lean_obj_arg,
         leader: lean_obj_arg,
         round: usize,

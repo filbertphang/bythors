@@ -68,7 +68,8 @@ deriving Repr, DecidableEq
 
 local notation "RaftEntry" => (@Entry Address Value)
 
-inductive Message
+-- renamed to avoid name conflicts when linking,,,
+inductive MessageRaft
   | RequestVote
     (term : Term)
     (candidateId : Address)
@@ -90,7 +91,7 @@ inductive Message
     (success : Bool)
 deriving Repr, DecidableEq
 
-local notation "RaftMessage" => (@Message Address Value)
+local notation "RaftMessage" => (@MessageRaft Address Value)
 local notation "RaftPacket" => (@Packet Address RaftMessage)
 
 inductive Input
@@ -240,7 +241,7 @@ def tryToBecomeLeader  (state : RaftData) :
   let packets :=
     state.nodes
     |> List.filter (λ node ↦ node ≠ state.me)
-    |> List.map (λ dstNode ↦ makePacket state.me dstNode (Message.RequestVote
+    |> List.map (λ dstNode ↦ makePacket state.me dstNode (MessageRaft.RequestVote
       nextTerm
       state.me
       (maxIndex state.log)
@@ -267,20 +268,20 @@ def handleAppendEntries
         nextState with
         log := entries
         commitIndex := newCommitIndex
-      }, Message.AppendEntriesReply term entries true)
+      }, MessageRaft.AppendEntriesReply term entries true)
     else
     ({
       nextState with
       type := ServerType.Follower
       leaderId := some leaderId
-    }, Message.AppendEntriesReply term entries true)
+    }, MessageRaft.AppendEntriesReply term entries true)
   else
     match (findAtIndex state.log prevLogIndex) with
     | none =>
-      (state, Message.AppendEntriesReply state.currentTerm entries false)
+      (state, MessageRaft.AppendEntriesReply state.currentTerm entries false)
     | some entry =>
       if !(prevLogTerm = entry.eTerm) then
-        (state, Message.AppendEntriesReply state.currentTerm entries false)
+        (state, MessageRaft.AppendEntriesReply state.currentTerm entries false)
       else
         if haveNewEntries state entries then
           let log' := removeAfterIndex state.log prevLogIndex
@@ -291,13 +292,13 @@ def handleAppendEntries
             commitIndex := max state.commitIndex (min leaderCommit (maxIndex log''))
             type := ServerType.Follower
             leaderId := some leaderId
-          }, Message.AppendEntriesReply term entries true)
+          }, MessageRaft.AppendEntriesReply term entries true)
         else
           ({
             nextState with
             type := ServerType.Follower
             leaderId := some leaderId
-          }, Message.AppendEntriesReply term entries true)
+          }, MessageRaft.AppendEntriesReply term entries true)
 
 def handleAppendEntriesReply
   (state : RaftData)
@@ -346,7 +347,7 @@ def handleRequestVote
   (lastLogTerm : Term)
   : RaftData × RaftMessage :=
   if state.currentTerm > term then
-    (state, Message.RequestVoteReply state.currentTerm false)
+    (state, MessageRaft.RequestVoteReply state.currentTerm false)
   else
     let nextState := advanceCurrentTerm state term
     if (nextState.leaderId.isNone)
@@ -357,11 +358,11 @@ def handleRequestVote
         ({
           nextState with
           votedFor := some candidateId
-        }, Message.RequestVoteReply nextState.currentTerm true)
+        }, MessageRaft.RequestVoteReply nextState.currentTerm true)
       | some candidateId' =>
-        (nextState, Message.RequestVoteReply nextState.currentTerm (candidateId = candidateId'))
+        (nextState, MessageRaft.RequestVoteReply nextState.currentTerm (candidateId = candidateId'))
     else
-      (nextState, Message.RequestVoteReply nextState.currentTerm false)
+      (nextState, MessageRaft.RequestVoteReply nextState.currentTerm false)
 
 def handleRequestVoteReply
   (state : RaftData)
@@ -396,24 +397,24 @@ def handleRequestVoteReply
         -- electoralVictories omitted
       }
 
-def handleMessage
+def handleMessageRaft
   (src : Address)
   (msg : RaftMessage)
   (state : RaftData)
   : RaftData × List RaftPacket :=
   match msg with
-  | Message.AppendEntries term leaderId prevLogIndex prevLogTerm entries leaderCommit =>
+  | MessageRaft.AppendEntries term leaderId prevLogIndex prevLogTerm entries leaderCommit =>
     let (nextState, reply) := handleAppendEntries state term leaderId prevLogIndex prevLogTerm entries leaderCommit
     (nextState, [makePacket state.me src reply])
 
-  | Message.AppendEntriesReply term entries result =>
+  | MessageRaft.AppendEntriesReply term entries result =>
     handleAppendEntriesReply state src term entries result
 
-  | Message.RequestVote term _candidateId lastLogIndex lastLogTerm =>
+  | MessageRaft.RequestVote term _candidateId lastLogIndex lastLogTerm =>
     let (nextState, reply) := handleRequestVote state term src lastLogIndex lastLogTerm
     (nextState, [makePacket state.me src reply])
 
-  | Message.RequestVoteReply term voteGranted =>
+  | MessageRaft.RequestVoteReply term voteGranted =>
     (handleRequestVoteReply state src term voteGranted, [])
 
 -- client handling
@@ -487,7 +488,7 @@ def replicaMessage
     | none => 0
     | some entry => entry.eTerm
   let newEntries := findGtIndex state.log prevIndex
-  let msg := Message.AppendEntries state.currentTerm state.me prevIndex prevTerm newEntries state.commitIndex
+  let msg := MessageRaft.AppendEntries state.currentTerm state.me prevIndex prevTerm newEntries state.commitIndex
   makePacket state.me host msg
 
 def haveQuorum
@@ -535,7 +536,7 @@ def RaftNetHandler
   (msg : RaftMessage)
   (state : RaftData)
   : (RaftData × List RaftOutput × List RaftPacket) :=
-  let (state, pkts) := handleMessage src msg state
+  let (state, pkts) := handleMessageRaft src msg state
   let (state', leaderOut, leaderPkts) := doLeader state
   let (state'', genericOut, genericPkts) := doGenericServer callback state'.me state'
   (state'', leaderOut ++ genericOut, pkts ++ leaderPkts ++ genericPkts)

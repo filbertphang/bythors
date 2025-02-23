@@ -28,15 +28,15 @@ opaque get_node_value : ConcreteAddress → ConcreteValue
 
 -- function that creates a protocol in lean
 -- rust expects this to always be called "create_protocol"
-@[export create_protocol]
-def create_protocol (node_arr: Array ConcreteAddress) : ConcreteRBProtocol :=
+@[export rb_create_protocol]
+def rb_create_protocol (node_arr: Array ConcreteAddress) : ConcreteRBProtocol :=
   let node_list := Array.toList node_arr
   -- note: we still have to hard-code String.decEq and USize.decEq here.
   -- would be good if we could derive DecideableEq on our abbrevs, so we can use decEq from the abbrev type directly.
   @RBProtocol ConcreteAddress ConcreteRound ConcreteValue String.decEq USize.decEq String.decEq (node_list) (get_node_value)
 
-@[export create_message]
-def create_message (tag: USize) (originator: ConcreteAddress) (r: ConcreteRound) (v: ConcreteValue)  : ConcreteRBMessage :=
+@[export rb_create_message]
+def rb_create_message (tag: USize) (originator: ConcreteAddress) (r: ConcreteRound) (v: ConcreteValue)  : ConcreteRBMessage :=
   -- for some reason, i can't seem to match on USize directly,
   -- so we cast the tag to Nat first.
   -- this just saves us the trouble of constructing the lean object in rust.
@@ -47,22 +47,22 @@ def create_message (tag: USize) (originator: ConcreteAddress) (r: ConcreteRound)
   | 2 => Message.VoteMsg originator r v
   | _ => sorry
 
-@[export init_node_state]
-def init_node_state (p: ConcreteRBProtocol) (node_address: ConcreteAddress) : ConcreteRBState :=
+@[export rb_init_node_state]
+def rb_init_node_state (p: ConcreteRBProtocol) (node_address: ConcreteAddress) : ConcreteRBState :=
   p.localInit node_address
 
-@[export send_message]
-def send_message (p: ConcreteRBProtocol) (node_state: ConcreteRBState) (round: ConcreteRound) : ConcreteRBState × Array ConcreteRBPacket :=
+@[export rb_send_message]
+def rb_send_message (p: ConcreteRBProtocol) (node_state: ConcreteRBState) (round: ConcreteRound) : ConcreteRBState × Array ConcreteRBPacket :=
   let (new_state, packet_list) := p.procInternal node_state round
   (new_state, List.toArray packet_list)
 
-@[export handle_message]
-def handle_message (p: ConcreteRBProtocol) (node_state: ConcreteRBState) (src: ConcreteAddress) (msg: ConcreteRBMessage) : ConcreteRBState × Array ConcreteRBPacket :=
+@[export rb_handle_message]
+def rb_handle_message (p: ConcreteRBProtocol) (node_state: ConcreteRBState) (src: ConcreteAddress) (msg: ConcreteRBMessage) : ConcreteRBState × Array ConcreteRBPacket :=
   let (new_state, packet_list) := p.procMessage node_state src msg
   (new_state, List.toArray packet_list)
 
-@[export check_output]
-def check_output (node_state: ConcreteRBState) (leader: ConcreteAddress) (round: ConcreteRound) : Option ConcreteValue :=
+@[export rb_check_output]
+def rb_check_output (node_state: ConcreteRBState) (leader: ConcreteAddress) (round: ConcreteRound) : Option ConcreteValue :=
   let out := node_state.output (leader, round)
   match out with
   | [] => none
