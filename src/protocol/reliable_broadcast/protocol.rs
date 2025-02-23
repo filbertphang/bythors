@@ -126,28 +126,10 @@ impl Protocol for ReliableBroadcast {
 
             lean_inc(self.node_state);
             let output_opt_lean = lean_extern::rb_check_output(self.node_state, leader, round);
-            // todo: dec_refcount to true
             let output =
-                lean_option_to_rust(output_opt_lean, |o| lean_string_to_rust(o, false), false);
-            return output;
+                lean_option_to_rust(output_opt_lean, |o| lean_string_to_rust(o, false), true);
 
-            // note: the runtime representation of lean4 options are:
-            // - none: lean_box(0), which is a scalar
-            // - some x: a constructor with 1 parameter, where that parameter is probably x
-            match lean_is_scalar(output_opt_lean) {
-                true => {
-                    // consensus not yet reached for this round
-                    None
-                }
-                false => {
-                    // consensus reached, return output value
-                    let output_lean = lean_ctor_get(output_opt_lean, 0);
-                    let output = lean_string_to_rust(output_lean, false);
-                    self.reached_consensus.insert(round);
-
-                    Some(output)
-                }
-            }
+            output
         }
     }
 }
