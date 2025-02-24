@@ -15,6 +15,9 @@ extern "C" {
         value: lean_obj_arg,     // ConcreteValue
     ) -> lean_obj_res; // (ConcreteRaftData, List ConcreteRaftInput, List ConcreteRaftPacket)
 
+    pub fn raft_handle_timeout(state: lean_obj_arg, // ConcreteRaftData
+    ) -> lean_obj_res; // (ConcreteRaftData, List ConcreteRaftInput, List ConcreteRaftPacket)
+
     pub fn raft_handle_message(
         state: lean_obj_arg, // ConcreteRaftData
         src: lean_obj_arg,   // ConcreteAddress
@@ -58,4 +61,6 @@ extern "C" {
         entries: lean_obj_arg,
         success: u8,
     ) -> lean_obj_res;
+
+    pub fn raft_convert_entry_list_to_arr(entries: lean_obj_arg) -> lean_obj_res;
 }

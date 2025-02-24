@@ -83,11 +83,17 @@ impl Message for RaftMessage {
                 let leader_id = lean_string_to_rust(field(1), false);
                 let prev_log_index = lean_usize_of_nat(field(2));
                 let prev_log_term = lean_usize_of_nat(field(3));
+
+                let entries_list_lean = field(4);
+                lean_inc(entries_list_lean);
+                let entries_arr_lean =
+                    lean_extern::raft_convert_entry_list_to_arr(entries_list_lean);
                 let entries = lean_array_to_rust_vec(
-                    field(4),
+                    entries_arr_lean,
                     |elem| RaftEntry::from_lean(elem, false),
                     false,
                 );
+
                 let leader_commit = lean_usize_of_nat(field(5));
 
                 Self::AppendEntries {
@@ -100,11 +106,16 @@ impl Message for RaftMessage {
                 }
             }
             3 => {
+                let entries_list_lean = field(1);
+                lean_inc(entries_list_lean);
+                let entries_arr_lean =
+                    lean_extern::raft_convert_entry_list_to_arr(entries_list_lean);
                 let entries = lean_array_to_rust_vec(
-                    field(2),
+                    entries_arr_lean,
                     |elem| RaftEntry::from_lean(elem, false),
                     false,
                 );
+
                 let offset: std::ffi::c_uint = (2 * VOID_PTR_SIZE).try_into().unwrap();
                 let success = lean_ctor_get_uint8(msg_lean, offset) != 0;
 

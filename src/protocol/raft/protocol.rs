@@ -104,19 +104,21 @@ impl Protocol for Raft {
 }
 
 unsafe fn deconstruct_state_and_packets(
-    state_and_packets: *mut lean_object,
+    state_and_results_and_packets: *mut lean_object,
 ) -> (*mut lean_object, Vec<RaftPacket>) {
     // deconstruct new protocol state
-    assert!(lean_is_ctor(state_and_packets));
-    assert!(lean_ctor_num_objs(state_and_packets) == 3);
-    let new_state = lean_ctor_get(state_and_packets, 0);
+    assert!(lean_is_ctor(state_and_results_and_packets));
+    assert!(lean_ctor_num_objs(state_and_results_and_packets) == 2);
+    let new_state = lean_ctor_get(state_and_results_and_packets, 0);
 
+    let results_and_packets = lean_ctor_get(state_and_results_and_packets, 1);
+    assert!(lean_ctor_num_objs(results_and_packets) == 2);
     // ignore the `List RaftOutput` at ctor field 1 (for now)
 
     // deconstruct lean packets into rust
     // RC: `lean_ctor_get` does not seem to increment the ref count.
     // we do not have to free `packets_arr_lean` later.
-    let packets_arr_lean = lean_ctor_get(state_and_packets, 2);
+    let packets_arr_lean = lean_ctor_get(results_and_packets, 1);
     let n_packets: usize = lean_array_size(packets_arr_lean);
     let mut packets_to_send = Vec::new();
     for i in 0..n_packets {
@@ -133,7 +135,7 @@ unsafe fn deconstruct_state_and_packets(
     lean_inc(new_state);
 
     // RC: decrement refcount of the result tuple, which should free packet array but NOT new state.
-    lean_dec(state_and_packets);
+    lean_dec(results_and_packets);
 
     (new_state, packets_to_send)
 }
