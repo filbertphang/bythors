@@ -96,7 +96,7 @@ impl Protocol for ReliableBroadcast {
     /// the new state and packet vector.
     unsafe fn handle_packet(&mut self, packet: RBPacket) -> Vec<RBPacket> {
         // debug print
-        info!("received packet:\n{}", packet);
+        info!("received packet:\n{packet:#?}");
 
         let src_lean = rust_string_to_lean(packet.src);
         let msg_lean = packet.msg.to_lean();

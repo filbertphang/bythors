@@ -8,6 +8,10 @@ pub trait Protocol {
     unsafe fn initialize_lean(builtin: u8, world: lean_obj_arg) -> lean_obj_res;
 
     unsafe fn create(node_list: Vec<String>, address: String, leader: String) -> Self;
+    unsafe fn start(&mut self) -> Vec<Packet<Self::Message>> {
+        Vec::new()
+    }
+
     unsafe fn start_round(
         &mut self,
         address: String, // the node's own address

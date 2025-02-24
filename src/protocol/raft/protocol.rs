@@ -3,7 +3,6 @@ use super::message::RaftMessage;
 
 // TODO 23/2/25 0003H impl this! heehee
 
-use crate::globals;
 use crate::marshal::array::{index_lean_array, rust_vec_to_lean_array};
 use crate::marshal::core::lean_option_to_rust;
 use crate::marshal::string::{lean_string_to_rust, rust_string_to_lean};
@@ -11,12 +10,12 @@ use crate::protocol::{Message, Packet, Protocol};
 
 use lean_sys::*;
 use log::info;
-use std::collections::HashSet;
 
 #[derive(Debug)]
 pub struct Raft {
     node_state: *mut lean_object,
     round: usize, // same as ClientId
+    is_first_leader: bool,
 }
 
 type RaftPacket = Packet<RaftMessage>;
@@ -28,9 +27,8 @@ impl Protocol for Raft {
         lean_extern::initialize_RaftConcrete(builtin, world)
     }
 
-    unsafe fn create(node_list: Vec<String>, address: String, _leader: String) -> Self {
-        // leader is ignored here, because Raft elections will automatically
-        // result in a suitable leader to be chosen
+    unsafe fn create(node_list: Vec<String>, address: String, leader: String) -> Self {
+        let is_first_leader = address == leader;
 
         // initialize this node's state
         let node_array_lean = rust_vec_to_lean_array(node_list, rust_string_to_lean);
@@ -44,13 +42,37 @@ impl Protocol for Raft {
         // initialize round to 0
         let round = 0;
 
-        Self { node_state, round }
+        Self {
+            node_state,
+            round,
+            is_first_leader,
+        }
+    }
+
+    unsafe fn start(&mut self) -> Vec<RaftPacket> {
+        if self.is_first_leader {
+            info!("start: starting protocol");
+            let state_and_packets = lean_extern::raft_handle_timeout(self.node_state);
+
+            info!("start: deconstructing");
+            let (new_state, packets_to_send) = deconstruct_state_and_packets(state_and_packets);
+            println!("packets to send:");
+            dbg!(&packets_to_send);
+
+            // update node state
+            self.node_state = new_state;
+
+            packets_to_send
+        } else {
+            vec![]
+        }
     }
 
     /// Starts a new round of consensus with a given message.
     /// Sends the message to all other nodes.
     unsafe fn start_round(&mut self, _address: String, message: String) -> Vec<RaftPacket> {
         // (own address is not needed, since it's already stored in the node state)
+        info!("starting round with {message:#?}");
 
         let round_lean = lean_usize_to_nat(self.round);
         let value_lean = rust_string_to_lean(message);
@@ -58,6 +80,8 @@ impl Protocol for Raft {
             lean_extern::raft_handle_input(self.node_state, round_lean, value_lean);
 
         let (new_state, packets_to_send) = deconstruct_state_and_packets(state_and_packets);
+        println!("packets to send:");
+        dbg!(&packets_to_send);
 
         // update node state
         self.node_state = new_state;
@@ -76,7 +100,7 @@ impl Protocol for Raft {
     /// the new state and packet vector.
     unsafe fn handle_packet(&mut self, packet: RaftPacket) -> Vec<RaftPacket> {
         // debug print
-        info!("received packet:\n{}", packet);
+        info!("received packet:\n{packet:#?}");
 
         let src_lean = rust_string_to_lean(packet.src);
         let msg_lean = packet.msg.to_lean();
@@ -99,6 +123,7 @@ impl Protocol for Raft {
         let round_lean = lean_usize_to_nat(round);
         let output_opt_lean = lean_extern::raft_check_output(self.node_state, round_lean);
         let output = lean_option_to_rust(output_opt_lean, |x| lean_string_to_rust(x, false), true);
+        info!("checking output for round {round}: found {output:#?}");
         output
     }
 }

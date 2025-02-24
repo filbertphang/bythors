@@ -19,9 +19,6 @@ where
     T: Protocol,
     T::Message: Message + 'static,
 {
-    // TODO: try replacing the associated type `Packet` in `Protocol` with `Message`?
-    // so that we can assert that message has the bound `protocol::Message`
-    // it's kinda fucky
     swarm: Swarm<ProtocolBehaviour<T::Message>>,
     protocol: T,
     // TODO: refine the type of the callback.
@@ -29,6 +26,7 @@ where
     // have to use `Fn` or `FnMut` instead of `fn`.
     // TODO: use the callback for something
     callback: fn(String, usize) -> (),
+    all_peers: Vec<String>,
 }
 
 impl<T> Network<T>
@@ -74,7 +72,7 @@ where
             initialize_lean_environment(T::initialize_lean);
 
             // construct lean protocol
-            T::create(all_peers, self_id, leader_id)
+            T::create(all_peers.clone(), self_id, leader_id)
         };
 
         // Tell the swarm to listen on all interfaces and a random, OS-assigned port.
@@ -85,9 +83,23 @@ where
             swarm,
             protocol,
             callback,
+            all_peers,
         };
-
         Ok(network)
+    }
+
+    pub async fn start(&mut self) {
+        // wait for connections
+        while self.swarm.connected_peers().count() != (self.all_peers.len() - 1) {
+            let _ = self.poll().await;
+            ()
+        }
+
+        // start protocol
+        unsafe {
+            let packets = self.protocol.start();
+            self.transmit(packets);
+        }
     }
 
     pub async fn poll(&mut self) -> Result<(), Box<dyn Error>> {
@@ -122,7 +134,6 @@ where
                     ..
                 },
             )) => {
-                info!("request received");
                 self.handle_request(request, channel);
             }
 
@@ -137,7 +148,6 @@ where
                         },
                 },
             )) => {
-                info!("response received");
                 self.handle_response();
             }
 
@@ -167,6 +177,7 @@ where
         request: ProtocolRequest<T::Message>,
         channel: ResponseChannel<ProtocolResponse>,
     ) {
+        info!("request received");
         let packet = request.packet;
         let round_opt = packet.get_round();
 
@@ -197,6 +208,7 @@ where
         // TODO: implement a proper handling mechanism
         // currently, responses are just acknowledgements (`ProtocolResponse::Ack`) of requests,
         // so we don't really need to do anything with it.
+        info!("response received");
     }
 
     /// Transmits a packet to all other nodes.
@@ -207,6 +219,7 @@ where
     }
 
     fn send_individual_packet(&mut self, packet: Packet<T::Message>) {
+        info!("sending packet {packet:#?}");
         let src_id =
             PeerId::from_str(packet.src.as_str()).expect("expected well-formed source address");
         let dst_id = PeerId::from_str(packet.dst.as_str())

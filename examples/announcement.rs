@@ -1,4 +1,5 @@
 use bythors::network::Network;
+use bythors::protocol::raft::Raft;
 use bythors::protocol::reliable_broadcast::ReliableBroadcast;
 use libp2p::identity::{rsa, Keypair, PeerId, PublicKey};
 use tokio::{io, io::AsyncBufReadExt, select};
@@ -21,6 +22,9 @@ fn parse_public_key(path: &str) -> PeerId {
 /// from the leader node to all other recipient nodes.
 #[tokio::main]
 async fn main() {
+    // initiaize logger
+    env_logger::init();
+
     // require that at least 2 args are passed in:
     // first argument is the keypair (identity) of the current node
     // all remaining arguments are the public keys of ALL nodes in the network, including
@@ -49,11 +53,12 @@ async fn main() {
     let callback = |msg, round| println!("(round {round}) {msg}");
 
     // initialize network driver
-    let mut network: Network<ReliableBroadcast> =
+    // let mut network: Network<ReliableBroadcast> =
+    let mut network: Network<Raft> =
         Network::initialize(identity, &other_peer_ids, leader_peer_id, callback).unwrap();
 
-    // initiaize logger
-    env_logger::init();
+    // stupid hack to get the network to discover each other first before we start
+    network.start().await;
 
     // simulate announcement channel: wait on stdin, and broadcast messages received from stdin
     let mut stdin = io::BufReader::new(io::stdin()).lines();
