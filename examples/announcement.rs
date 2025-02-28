@@ -1,6 +1,5 @@
 use bythors::network::Network;
 use bythors::protocol::raft::Raft;
-use bythors::protocol::reliable_broadcast::ReliableBroadcast;
 use libp2p::identity::{rsa, Keypair, PeerId, PublicKey};
 use tokio::{io, io::AsyncBufReadExt, select};
 
