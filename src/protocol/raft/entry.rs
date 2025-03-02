@@ -2,6 +2,7 @@ use super::lean_extern;
 
 use crate::marshal::core::lean_dec_cond;
 use crate::marshal::string::{lean_string_to_rust, rust_string_to_lean};
+use crate::marshal::tuple::{lean_tuple_to_rust, rust_tuple_to_lean};
 
 use lean_sys::*;
 
@@ -12,7 +13,7 @@ pub struct RaftEntry {
     e_id: usize,         // stored as nat
     e_index: usize,      // stored as nat
     e_term: usize,       // stored as nat
-    e_input: String,
+    e_input: (String, String),
 }
 
 impl std::fmt::Display for RaftEntry {
@@ -31,7 +32,7 @@ impl RaftEntry {
         let e_input_lean = lean_ctor_get(entry_lean, 5);
 
         let e_at = lean_string_to_rust(e_at_lean, false);
-        let e_input = lean_string_to_rust(e_input_lean, false);
+        let e_input = lean_tuple_to_rust(e_input_lean, |s| lean_string_to_rust(s, false), false);
 
         let e_client = lean_usize_of_nat(e_client_lean);
         let e_id = lean_usize_of_nat(e_id_lean);
@@ -54,7 +55,7 @@ impl RaftEntry {
     // Takes ownership of the Rust Message.
     pub unsafe fn to_lean(self) -> *mut lean_object {
         let e_at = rust_string_to_lean(self.e_at);
-        let e_input = rust_string_to_lean(self.e_input);
+        let e_input = rust_tuple_to_lean(self.e_input, rust_string_to_lean);
 
         let e_client = lean_usize_to_nat(self.e_client);
         let e_id = lean_usize_to_nat(self.e_id);
