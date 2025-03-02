@@ -55,7 +55,7 @@ impl Protocol for Raft {
 
             info!("start: deconstructing");
             let (new_state, packets_to_send) = deconstruct_state_and_packets(state_and_packets);
-            println!("packets to send:");
+            info!("packets to send:");
             dbg!(&packets_to_send);
 
             // update node state
@@ -83,7 +83,7 @@ impl Protocol for Raft {
             lean_extern::raft_handle_input(self.node_state, round_lean, value_lean);
 
         let (new_state, packets_to_send) = deconstruct_state_and_packets(state_and_packets);
-        println!("packets to send:");
+        info!("packets to send:");
         dbg!(&packets_to_send);
 
         // update node state
@@ -125,10 +125,10 @@ impl Protocol for Raft {
     // this function basically queries the lean hashmap
     unsafe fn check_output(&mut self, key: String) -> Option<String> {
         let key_lean = rust_string_to_lean(key.clone());
+        lean_inc(self.node_state);
         let output_opt_lean = lean_extern::raft_check_output(self.node_state, key_lean);
 
         let output = lean_option_to_rust(output_opt_lean, |x| lean_string_to_rust(x, false), true);
-        info!("query for key {key}: found {output:#?}");
         output
     }
 }

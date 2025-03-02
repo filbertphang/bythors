@@ -33,6 +33,7 @@ where
         identity: Keypair,
         all_peer_ids: &Vec<PeerId>,
         leader_peer_id: &PeerId,
+        init_lean: bool,
     ) -> Result<Self, Box<dyn Error>> {
         // for diagnostics
         // tracing_subscriber::fmt()
@@ -62,8 +63,10 @@ where
             .collect();
 
         let protocol = unsafe {
-            // initialize lean environment
-            initialize_lean_environment(T::initialize_lean);
+            if init_lean {
+                // initialize lean environment
+                initialize_lean_environment(T::initialize_lean);
+            }
 
             // construct lean protocol
             T::create(all_peers.clone(), self_id, leader_id)
@@ -224,7 +227,7 @@ where
         }
     }
 
-    fn check_output(&mut self, key: String) -> Option<String> {
+    pub fn check_output(&mut self, key: String) -> Option<String> {
         unsafe { self.protocol.check_output(key) }
     }
 }
