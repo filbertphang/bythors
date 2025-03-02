@@ -161,7 +161,7 @@ where
     /// Begins a new round of consensus, starting with the client-supplied message.
     // TODO: add `round` as a parameter to this, and throw suitable errors if we're trying to
     // broadcast to an existing round (ongoing or concluded)
-    pub fn broadcast(&mut self, message: String) {
+    pub fn broadcast(&mut self, message: (String, String)) {
         let packets = unsafe { self.protocol.start_round(self.get_address(), message) };
         self.transmit(packets);
     }
@@ -173,7 +173,6 @@ where
     ) {
         info!("request received");
         let packet = request.packet;
-        let round_opt = packet.get_round();
 
         // acknowledge the packet
         self.swarm
@@ -225,7 +224,7 @@ where
         }
     }
 
-    fn check_output(&mut self, round: usize) -> Option<String> {
-        unsafe { self.protocol.check_output(round) }
+    fn check_output(&mut self, key: String) -> Option<String> {
+        unsafe { self.protocol.check_output(key) }
     }
 }

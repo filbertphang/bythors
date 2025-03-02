@@ -4,6 +4,7 @@ use super::message::RaftMessage;
 use crate::marshal::array::{index_lean_array, rust_vec_to_lean_array};
 use crate::marshal::core::lean_option_to_rust;
 use crate::marshal::string::{lean_string_to_rust, rust_string_to_lean};
+use crate::marshal::tuple::rust_tuple_to_lean;
 use crate::protocol::{Message, Packet, Protocol};
 
 use lean_sys::*;
@@ -68,12 +69,16 @@ impl Protocol for Raft {
 
     /// Starts a new round of consensus with a given message.
     /// Sends the message to all other nodes.
-    unsafe fn start_round(&mut self, _address: String, message: String) -> Vec<RaftPacket> {
+    unsafe fn start_round(
+        &mut self,
+        _address: String,
+        message: (String, String),
+    ) -> Vec<RaftPacket> {
         // (own address is not needed, since it's already stored in the node state)
         info!("starting round with {message:#?}");
 
         let round_lean = lean_usize_to_nat(self.round);
-        let value_lean = rust_string_to_lean(message);
+        let value_lean = rust_tuple_to_lean(message, rust_string_to_lean);
         let state_and_packets =
             lean_extern::raft_handle_input(self.node_state, round_lean, value_lean);
 
@@ -117,11 +122,13 @@ impl Protocol for Raft {
         packets_to_send
     }
 
-    unsafe fn check_output(&mut self, round: usize) -> Option<String> {
-        let round_lean = lean_usize_to_nat(round);
-        let output_opt_lean = lean_extern::raft_check_output(self.node_state, round_lean);
+    // this function basically queries the lean hashmap
+    unsafe fn check_output(&mut self, key: String) -> Option<String> {
+        let key_lean = rust_string_to_lean(key.clone());
+        let output_opt_lean = lean_extern::raft_check_output(self.node_state, key_lean);
+
         let output = lean_option_to_rust(output_opt_lean, |x| lean_string_to_rust(x, false), true);
-        info!("checking output for round {round}: found {output:#?}");
+        info!("query for key {key}: found {output:#?}");
         output
     }
 }

@@ -26,7 +26,7 @@ extern "C" {
 
     pub fn raft_check_output(
         state: lean_obj_arg, // ConcreteRaftData
-        index: lean_obj_arg, // ClientId
+        key: lean_obj_arg,   // ConcreteKey
     ) -> lean_obj_res; // Option ConcreteValue
 
     pub fn raft_create_entry(

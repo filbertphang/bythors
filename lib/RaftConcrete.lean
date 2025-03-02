@@ -9,24 +9,26 @@ import Raft
 
 -- concrete address, and value parameters
 @[reducible] def ConcreteAddress := String
-@[reducible] def ConcreteValue := String × String -- (k,v) pair
+@[reducible] def ConcreteKey := String
+@[reducible] def ConcreteValue := String
+@[reducible] def ConcreteKeyValue := ConcreteKey × ConcreteValue -- (k,v) pair
 
 -- instantiate state machine as an empty hashmap
 @[reducible] def ConcreteStateMachineData := Std.HashMap String String
 def smdInit : ConcreteStateMachineData := Std.HashMap.empty
 
 -- concrete instantiations of Raft types
-abbrev ConcreteRaftEntry := @Entry ConcreteAddress ConcreteValue
-abbrev ConcreteRaftMessage := @MessageRaft ConcreteAddress ConcreteValue
-abbrev ConcreteRaftData := @Data ConcreteAddress ConcreteValue ConcreteStateMachineData
-abbrev ConcreteRaftInput := @Input ConcreteValue
-abbrev ConcreteRaftOutput := @Output ConcreteValue
+abbrev ConcreteRaftEntry := @Entry ConcreteAddress ConcreteKeyValue
+abbrev ConcreteRaftMessage := @MessageRaft ConcreteAddress ConcreteKeyValue
+abbrev ConcreteRaftData := @Data ConcreteAddress ConcreteKeyValue ConcreteStateMachineData
+abbrev ConcreteRaftInput := @Input ConcreteKeyValue
+abbrev ConcreteRaftOutput := @Output ConcreteKeyValue
 abbrev ConcreteRaftPacket := @Packet ConcreteAddress ConcreteRaftMessage
 
 -- callback function for when consensus is reached on a log entry
 -- this is identity, because we want to reach consensus on the input (for now).
-def run_state_machine (v : ConcreteValue) (s : ConcreteStateMachineData)
-  : ConcreteValue × ConcreteStateMachineData :=
+def run_state_machine (v : ConcreteKeyValue) (s : ConcreteStateMachineData)
+  : ConcreteKeyValue × ConcreteStateMachineData :=
   let (key, value) := v
   (v, s.insert key value)
 
@@ -45,7 +47,7 @@ def raft_init (me : ConcreteAddress) (nodes : Array ConcreteAddress)
 def raft_handle_input
   (state : ConcreteRaftData)
   (clientId : ClientId)
-  (value : ConcreteValue)
+  (value : ConcreteKeyValue)
   : (ConcreteRaftData × Array ConcreteRaftOutput × Array ConcreteRaftPacket) :=
   let input := Input.ClientRequest clientId 0 value
   RaftInputHandler run_state_machine input state
@@ -72,10 +74,9 @@ def raft_handle_message
 @[export raft_check_output]
 def raft_check_output
   (state : ConcreteRaftData)
-  (index : ClientId)
+  (key : ConcreteKey)
   : Option ConcreteValue :=
-  state.clientCache.find? index
-  |> Option.map (λ (_, v) ↦ v)
+  state.stateMachine.get? key
 
 -- convenience functions
 @[export raft_create_entry]
@@ -85,7 +86,7 @@ def raft_create_entry
   (eId : InputId)
   (eIndex : Index)
   (eTerm : Term)
-  (eInput : ConcreteValue)
+  (eInput : ConcreteKeyValue)
   : ConcreteRaftEntry :=
   {
     eAt
