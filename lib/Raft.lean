@@ -4,6 +4,8 @@ open Lean (AssocList)
 deriving instance Repr for NetworkPacket
 
 -- adding some helpers for association lists to make life easier
+-- (i remember running into a problem when trying to use HashMaps instead of AssocLists, but i forgot
+-- what the problem was)
 namespace Lean.AssocList
   -- structure is effectively identical to List.hasDecEq
   -- see: https://github.com/leanprover/lean4/blob/93d4ae6635c0c755c9f7368f9b99483d4557b7a6/src/Init/Prelude.lean#L2328-L2339

@@ -9,11 +9,11 @@ import Raft
 
 -- concrete address, and value parameters
 @[reducible] def ConcreteAddress := String
-@[reducible] def ConcreteValue := String
+@[reducible] def ConcreteValue := String × String -- (k,v) pair
 
--- instantiate state machine as the identity machine
-@[reducible] def ConcreteStateMachineData := Unit
-def smdInit := ()
+-- instantiate state machine as an empty hashmap
+@[reducible] def ConcreteStateMachineData := Std.HashMap String String
+def smdInit : ConcreteStateMachineData := Std.HashMap.empty
 
 -- concrete instantiations of Raft types
 abbrev ConcreteRaftEntry := @Entry ConcreteAddress ConcreteValue
@@ -27,7 +27,8 @@ abbrev ConcreteRaftPacket := @Packet ConcreteAddress ConcreteRaftMessage
 -- this is identity, because we want to reach consensus on the input (for now).
 def run_state_machine (v : ConcreteValue) (s : ConcreteStateMachineData)
   : ConcreteValue × ConcreteStateMachineData :=
-  (v, s)
+  let (key, value) := v
+  (v, s.insert key value)
 
 def map_to_array
   (dop : ConcreteRaftData × List ConcreteRaftOutput × List ConcreteRaftPacket)
