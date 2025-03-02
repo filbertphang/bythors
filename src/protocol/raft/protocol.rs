@@ -1,8 +1,6 @@
 use super::lean_extern;
 use super::message::RaftMessage;
 
-// TODO 23/2/25 0003H impl this! heehee
-
 use crate::marshal::array::{index_lean_array, rust_vec_to_lean_array};
 use crate::marshal::core::lean_option_to_rust;
 use crate::marshal::string::{lean_string_to_rust, rust_string_to_lean};

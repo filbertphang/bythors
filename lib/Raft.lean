@@ -138,8 +138,6 @@ structure Data :=
   -- (* volatile *)
   commitIndex : Index
   lastApplied : Index
-
-  -- TODO: model stateMachine
   stateMachine : StateMachineData
 
   -- (* leader state *)

@@ -21,11 +21,6 @@ where
 {
     swarm: Swarm<ProtocolBehaviour<T::Message>>,
     protocol: T,
-    // TODO: refine the type of the callback.
-    // this will probably capture some part of the client application's environment, so we might
-    // have to use `Fn` or `FnMut` instead of `fn`.
-    // TODO: use the callback for something
-    callback: fn(String, usize) -> (),
     all_peers: Vec<String>,
 }
 
@@ -38,7 +33,6 @@ where
         identity: Keypair,
         all_peer_ids: &Vec<PeerId>,
         leader_peer_id: &PeerId,
-        callback: fn(String, usize) -> (),
     ) -> Result<Self, Box<dyn Error>> {
         // for diagnostics
         // tracing_subscriber::fmt()
@@ -82,7 +76,6 @@ where
         let network = Self {
             swarm,
             protocol,
-            callback,
             all_peers,
         };
         Ok(network)
@@ -105,6 +98,7 @@ where
     pub async fn poll(&mut self) -> Result<(), Box<dyn Error>> {
         // handle a swarm event (poll the swarm)
         let event = self.swarm.select_next_some().await;
+        // TODO add heartbeat here
         match event {
             SwarmEvent::NewListenAddr { address, .. } => println!("Listening on {address:?}"),
 
@@ -190,18 +184,6 @@ where
 
         let packets_to_send = unsafe { self.protocol.handle_packet(packet) };
         self.transmit(packets_to_send);
-
-        // TODO: figure out why consensus doesnt seem to be reached for non-leader nodes
-        // (probably has to do with the address passed into `check_output`)
-        // check for consensus for this round
-        unsafe {
-            let output_opt = round_opt.and_then(|r| self.protocol.check_output(r));
-            match Option::zip(output_opt, round_opt) {
-                None => {}
-                // consensus reached: trigger callback
-                Some((output, round)) => (self.callback)(output, round),
-            }
-        }
     }
 
     fn handle_response(&mut self) {
@@ -239,9 +221,11 @@ where
                 // this behaviour by manually calling the packet handler.
                 let packets_to_send = unsafe { self.protocol.handle_packet(packet) };
                 self.transmit(packets_to_send);
-
-                // TODO: check consensus output here (why here?)
             }
         }
+    }
+
+    fn check_output(&mut self, round: usize) -> Option<String> {
+        unsafe { self.protocol.check_output(round) }
     }
 }

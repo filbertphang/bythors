@@ -55,6 +55,3 @@ where
         }
     }
 }
-
-// TODO: add swarm initializer and network handlers (send message, handle message, etc)
-// refer to `libp2p_rb.rs`
