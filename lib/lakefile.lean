@@ -45,16 +45,6 @@ library_facet fatStatic (lib : LeanLib) : FilePath :=
   LeanLib.buildFatStatic lib
 
 @[default_target]
-lean_lib «ReliableBroadcast» {
-  defaultFacets := #[LeanLib.sharedFacet]
-}
-
-@[default_target]
-lean_lib «ReliableBroadcastConcrete» {
-  defaultFacets := #[`fatStatic]
-}
-
-@[default_target]
 lean_lib «Raft» {
   defaultFacets := #[LeanLib.sharedFacet]
 }

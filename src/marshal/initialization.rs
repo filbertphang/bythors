@@ -23,6 +23,7 @@ pub unsafe fn initialize_lean_environment(
 }
 
 // io helpers
+#[allow(dead_code)]
 pub unsafe fn cleanup_lean_io(o: *mut lean_object) {
     if lean_io_result_is_ok(o) {
         lean_dec_ref(o);

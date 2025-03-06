@@ -56,7 +56,7 @@ impl Protocol for Raft {
             info!("start: deconstructing");
             let (new_state, packets_to_send) = deconstruct_state_and_packets(state_and_packets);
             info!("packets to send:");
-            dbg!(&packets_to_send);
+            info!("{packets_to_send:#?}");
 
             // update node state
             self.node_state = new_state;
@@ -84,7 +84,7 @@ impl Protocol for Raft {
 
         let (new_state, packets_to_send) = deconstruct_state_and_packets(state_and_packets);
         info!("packets to send:");
-        dbg!(&packets_to_send);
+        info!("{packets_to_send:#?}");
 
         // update node state
         self.node_state = new_state;
