@@ -36,7 +36,7 @@ namespace Lean.AssocList
 
   def update [BEq α] (xs : AssocList α β) (a : α) (f : Option β → β)
   : AssocList α β  :=
-     xs.replace a (f (xs.find? a))
+    xs.insert a (f (xs.find? a))
 end Lean.AssocList
 
 -- this implementation of Raft translated from verdi-raft
@@ -456,13 +456,13 @@ def applyEntries
   : RaftData × List RaftOutput :=
   entries.foldr
     (λ entry (st_acc, out_acc) ↦
-      let (_st, out) := cacheApplyEntry callback state entry
+      let (new_st, out) := cacheApplyEntry callback st_acc entry
       let out' :=
         if entry.eAt = node then
           out.map (λ output ↦ Output.ClientResponse entry.eClient entry.eId output)
         else
           []
-      (st_acc, out' ++ out_acc)
+      (new_st, out' ++ out_acc)
     )
     (state, [])
 
@@ -470,14 +470,14 @@ def doGenericServer
   (node : Address)
   (state : RaftData)
   : RaftData × List RaftOutput × List RaftPacket :=
-  let (state, out) := applyEntries callback node state
+  let (state', out) := applyEntries callback node state
     (findGtIndex state.log state.lastApplied
      |> List.filter (λ entry ↦
        (state.lastApplied < entry.eIndex)
        && (entry.eIndex <= state.commitIndex))
      |> List.reverse)
-  let newLastApplied := max state.commitIndex state.lastApplied
-  ({state with lastApplied := newLastApplied}, out, [])
+  let newLastApplied := max state'.commitIndex state'.lastApplied
+  ({state' with lastApplied := newLastApplied}, out, [])
 
 def replicaMessage
   (state : RaftData)
@@ -536,10 +536,10 @@ def RaftNetHandler
   (msg : RaftMessage)
   (state : RaftData)
   : (RaftData × List RaftOutput × List RaftPacket) :=
-  let (state, pkts) := handleMessageRaft src msg state
-  let (state', leaderOut, leaderPkts) := doLeader state
-  let (state'', genericOut, genericPkts) := doGenericServer callback state'.me state'
-  (state'', leaderOut ++ genericOut, pkts ++ leaderPkts ++ genericPkts)
+  let (state', pkts) := handleMessageRaft src msg state
+  let (state'', leaderOut, leaderPkts) := doLeader state'
+  let (state''', genericOut, genericPkts) := doGenericServer callback state''.me state''
+  (state''', leaderOut ++ genericOut, pkts ++ leaderPkts ++ genericPkts)
 
 def handleClientRequest
   (state : RaftData)
@@ -611,7 +611,10 @@ def init_handlers (me : Address) (nodes : List Address) : RaftData :=
     lastApplied := 0
     stateMachine := smdInit
     nextIndex :=  AssocList.empty
-    matchIndex := AssocList.empty
+    matchIndex :=
+      nodes
+      |> List.map (λ n ↦ (n, 0))
+      |> List.toAssocList'
     shouldSend := false
     votesReceived := []
     type := ServerType.Follower

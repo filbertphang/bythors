@@ -24,7 +24,7 @@ still somehow extremely WIP
 - do (de/)serialization in lean so that we can just send raw bytes in rust -> no marshalling overhead?
   https://leanprover.zulipchat.com/#narrow/channel/113488-general/topic/Tree.20notation/near/271743211
 
-- kv store is gonna be dogshittily implemented, proper way would be to:
+- kv store is gonna be questionably implemented, proper way would be to:
   - achieve consensus over the log of events, i.e. client commands
   - need to change Value -> InputValue + OutputValue in Raft.lean
   - InputValue is an enum/inductive over GETrequest and PUTrequest
