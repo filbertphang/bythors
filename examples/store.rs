@@ -99,7 +99,7 @@ async fn main() {
                 }
 
                 // poll the network driver, to process new connections and events.
-                Ok(()) = network.poll() => { }
+                _ = network.poll() => { }
             }
         }
     });
@@ -111,14 +111,15 @@ async fn main() {
         // probably not a good idea to share FFI stuff between threads, though
         // i'm not too sure how that interacts (e.g. will FFI pointers still be valid?)
         let all_nodes_copy = all_nodes.clone();
-        let expect_msg = format!("should be able to poll network in thread {i}");
 
         local_set.spawn_local(async move {
+            // lean can only be initialized once per process (else we segfault)
+            // so, we skip initialzing in the replica threads
             let mut network = start_replica(i, &all_nodes_copy, false);
             network.start().await;
 
             loop {
-                network.poll().await.expect(&expect_msg)
+                network.poll().await
             }
         });
     }

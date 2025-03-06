@@ -98,7 +98,7 @@ where
         }
     }
 
-    pub async fn poll(&mut self) -> Result<(), Box<dyn Error>> {
+    pub async fn poll(&mut self) {
         // handle a swarm event (poll the swarm)
         let event = self.swarm.select_next_some().await;
         // TODO add heartbeat here
@@ -109,7 +109,10 @@ where
             SwarmEvent::Behaviour(ProtocolBehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
                 info!("new peer(s) discovered");
                 for (peer_id, _multiaddr) in list {
-                    self.swarm.dial(peer_id)?;
+                    // ignoring the result of this, because sometimes it would error
+                    // when a peer expires, is re-discovered, and we try to dial it
+                    // when it's already dialed.
+                    let _ = self.swarm.dial(peer_id);
                 }
             }
 
@@ -151,9 +154,6 @@ where
             // Ignore all other events.
             _ => {}
         }
-
-        // TODO: figure out how to handle errors here
-        Ok(())
     }
 
     fn get_address(&self) -> String {
