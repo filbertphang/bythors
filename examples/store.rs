@@ -1,7 +1,10 @@
-use bythors::network::Network;
+use bythors::network::{Network, NetworkPollResult};
 use bythors::protocol::raft::Raft;
 use libp2p::identity::{rsa, Keypair, PeerId, PublicKey};
 use log::info;
+use std::pin::Pin;
+use std::time::Duration;
+use tokio::time::{Instant, Sleep};
 use tokio::{io, io::AsyncBufReadExt, select};
 
 // key generation
@@ -57,11 +60,25 @@ fn parse_command(raw_input: String) -> Option<Command> {
     }
 }
 
+fn randomize_timeout(timeout: u64) -> Duration {
+    Duration::from_millis(rand::random_range(timeout..=(2 * timeout)))
+}
+
+fn reset_heartbeat(heartbeat: Pin<&mut Sleep>, timeout: u64) {
+    let timeout_duration = randomize_timeout(timeout);
+    let deadline = Instant::now()
+        .checked_add(timeout_duration)
+        .expect("should be able to create new deadline");
+    heartbeat.reset(deadline);
+}
+
 /// a simple distributed key-value store (for strings),
 /// using the raft protocol
 #[tokio::main]
 async fn main() {
     env_logger::init();
+    const ELECTION_TIMEOUT: u64 = 10000;
+    const HEARTBEAT_INTERVAL: u64 = ELECTION_TIMEOUT / 4;
 
     // use key 1 as master node
     // use keys 2 - 4 as replicas
@@ -79,10 +96,18 @@ async fn main() {
         let mut network = start_replica(1, &all_nodes_copy, true);
         network.start().await;
 
-        info!("ready!");
+        info!("master node ready!");
+        // Future that indicates when a heartbeat has not been received for some time
+        let heartbeat_timeout = tokio::time::sleep(randomize_timeout(ELECTION_TIMEOUT));
+        tokio::pin!(heartbeat_timeout);
+
+        // Future that is resolved whenever a leader should send a heartbeat
+        let should_send_heartbeat = tokio::time::sleep(randomize_timeout(HEARTBEAT_INTERVAL));
+        tokio::pin!(should_send_heartbeat);
 
         loop {
             select! {
+                // handle stdin
                 Ok(Some(line)) = stdin.next_line() => {
                     let command = parse_command(line.clone());
                     match command {
@@ -98,8 +123,28 @@ async fn main() {
                     }
                 }
 
+                // heartbeat not received: send timeout
+                () = &mut heartbeat_timeout => {
+                    network.timeout();
+                }
+
+                // time to send a heartbeat
+                () = &mut should_send_heartbeat => {
+                    network.send_heartbeat();
+                    // reset the timer for the next one
+                    reset_heartbeat(should_send_heartbeat.as_mut(), HEARTBEAT_INTERVAL);
+                }
+
                 // poll the network driver, to process new connections and events.
-                _ = network.poll() => { }
+                res = network.poll() => {
+                    match res {
+                        NetworkPollResult::ProtocolEvent => {
+                            // reset the heartbeat timer
+                            reset_heartbeat(heartbeat_timeout.as_mut(), ELECTION_TIMEOUT);
+                        }
+                        NetworkPollResult::OtherEvent => {}
+                    }
+                }
             }
         }
     });
@@ -118,8 +163,40 @@ async fn main() {
             let mut network = start_replica(i, &all_nodes_copy, false);
             network.start().await;
 
+            info!("replica {i} ready!");
+            // Future that indicates when a heartbeat has not been received for some time
+            let heartbeat_timeout = tokio::time::sleep(randomize_timeout(ELECTION_TIMEOUT));
+            tokio::pin!(heartbeat_timeout);
+
+            // Future that is resolved whenever a leader should send a heartbeat
+            let should_send_heartbeat = tokio::time::sleep(randomize_timeout(HEARTBEAT_INTERVAL));
+            tokio::pin!(should_send_heartbeat);
+
             loop {
-                network.poll().await
+                select! {
+                    // heartbeat not received: send timeout
+                    () = &mut heartbeat_timeout => {
+                        network.timeout();
+                    }
+
+                    // time to send a heartbeat
+                    () = &mut should_send_heartbeat => {
+                        network.send_heartbeat();
+                        // reset the timer for the next one
+                        reset_heartbeat(should_send_heartbeat.as_mut(), HEARTBEAT_INTERVAL);
+                    }
+
+                    // poll the network driver, to process new connections and events.
+                    res = network.poll() => {
+                        match res {
+                            NetworkPollResult::ProtocolEvent => {
+                                // reset the heartbeat timer
+                                reset_heartbeat(heartbeat_timeout.as_mut(), ELECTION_TIMEOUT);
+                            }
+                            NetworkPollResult::OtherEvent => {}
+                        }
+                    }
+                }
             }
         });
     }

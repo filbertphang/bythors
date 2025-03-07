@@ -14,6 +14,11 @@ use log::info;
 use std::str::FromStr;
 use std::time::Duration;
 
+pub enum NetworkPollResult {
+    ProtocolEvent,
+    OtherEvent,
+}
+
 pub struct Network<T>
 where
     T: Protocol,
@@ -88,7 +93,6 @@ where
         // wait for connections
         while self.swarm.connected_peers().count() != (self.all_peers.len() - 1) {
             let _ = self.poll().await;
-            ()
         }
 
         // start protocol
@@ -98,12 +102,14 @@ where
         }
     }
 
-    pub async fn poll(&mut self) {
+    pub async fn poll(&mut self) -> NetworkPollResult {
         // handle a swarm event (poll the swarm)
         let event = self.swarm.select_next_some().await;
-        // TODO add heartbeat here
         match event {
-            SwarmEvent::NewListenAddr { address, .. } => println!("Listening on {address:?}"),
+            SwarmEvent::NewListenAddr { address, .. } => {
+                println!("Listening on {address:?}");
+                NetworkPollResult::OtherEvent
+            }
 
             // MDNS: new peer discovered
             SwarmEvent::Behaviour(ProtocolBehaviourEvent::Mdns(mdns::Event::Discovered(list))) => {
@@ -114,6 +120,7 @@ where
                     // when it's already dialed.
                     let _ = self.swarm.dial(peer_id);
                 }
+                NetworkPollResult::OtherEvent
             }
 
             // MDNS: peer expired
@@ -122,6 +129,7 @@ where
                     // TODO: determine what happens to the protocol when a peer expires and re-connects.
                     info!("peer(s) expired");
                 }
+                NetworkPollResult::OtherEvent
             }
 
             // Request-Response: received a request
@@ -135,6 +143,7 @@ where
                 },
             )) => {
                 self.handle_request(request, channel);
+                NetworkPollResult::ProtocolEvent
             }
 
             // Request-Response: received a response
@@ -149,10 +158,11 @@ where
                 },
             )) => {
                 self.handle_response();
+                NetworkPollResult::OtherEvent
             }
 
             // Ignore all other events.
-            _ => {}
+            _ => NetworkPollResult::OtherEvent,
         }
     }
 
@@ -229,5 +239,16 @@ where
 
     pub fn check_output(&mut self, key: String) -> Option<String> {
         unsafe { self.protocol.check_output(key) }
+    }
+
+    pub fn timeout(&mut self) {
+        info!("getting timed out (if follower)");
+        let packets_to_send = unsafe { self.protocol.handle_timeout() };
+        self.transmit(packets_to_send);
+    }
+    pub fn send_heartbeat(&mut self) {
+        info!("sending heartbeat (if leader)");
+        let packets_to_send = unsafe { self.protocol.send_heartbeat() };
+        self.transmit(packets_to_send);
     }
 }

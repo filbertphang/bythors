@@ -131,6 +131,20 @@ impl Protocol for Raft {
         let output = lean_option_to_rust(output_opt_lean, |x| lean_string_to_rust(x, false), true);
         output
     }
+
+    unsafe fn handle_timeout(&mut self) -> Vec<Packet<Self::Message>> {
+        let state_and_packets = lean_extern::raft_handle_timeout(self.node_state);
+        let (new_state, packets_to_send) = deconstruct_state_and_packets(state_and_packets);
+        self.node_state = new_state; // update node state
+        packets_to_send
+    }
+
+    unsafe fn send_heartbeat(&mut self) -> Vec<Packet<Self::Message>> {
+        let state_and_packets = lean_extern::raft_send_heartbeat(self.node_state);
+        let (new_state, packets_to_send) = deconstruct_state_and_packets(state_and_packets);
+        self.node_state = new_state; // update node state
+        packets_to_send
+    }
 }
 
 unsafe fn deconstruct_state_and_packets(

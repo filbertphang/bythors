@@ -18,6 +18,9 @@ extern "C" {
     pub fn raft_handle_timeout(state: lean_obj_arg, // ConcreteRaftData
     ) -> lean_obj_res; // (ConcreteRaftData, List ConcreteRaftInput, List ConcreteRaftPacket)
 
+    pub fn raft_send_heartbeat(state: lean_obj_arg, // ConcreteRaftData
+    ) -> lean_obj_res; // (ConcreteRaftData, List ConcreteRaftInput, List ConcreteRaftPacket)
+
     pub fn raft_handle_message(
         state: lean_obj_arg, // ConcreteRaftData
         src: lean_obj_arg,   // ConcreteAddress

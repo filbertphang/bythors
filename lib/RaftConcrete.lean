@@ -53,14 +53,32 @@ def raft_handle_input
   RaftInputHandler run_state_machine input state
   |> map_to_array
 
--- todo: send heartbeats and timeouts from rust side
+-- for followers/candidates to handle timeout
 @[export raft_handle_timeout]
 def raft_handle_timeout
   (state : ConcreteRaftData)
   : (ConcreteRaftData × Array ConcreteRaftOutput × Array ConcreteRaftPacket) :=
-  let input := Input.Timeout
-  RaftInputHandler run_state_machine input state
-  |> map_to_array
+  match state.type with
+  | ServerType.Follower
+  | ServerType.Candidate =>
+    let input := Input.Timeout
+    RaftInputHandler run_state_machine input state
+    |> map_to_array
+  | ServerType.Leader => (state, #[], #[])
+
+-- for leaders to send heartbeats
+-- (note: this uses the same RaftInputHandler function)
+@[export raft_send_heartbeat]
+def raft_send_heartbeat
+  (state : ConcreteRaftData)
+  : (ConcreteRaftData × Array ConcreteRaftOutput × Array ConcreteRaftPacket) :=
+  match state.type with
+  | ServerType.Leader =>
+    let input := Input.Timeout
+    RaftInputHandler run_state_machine input state
+    |> map_to_array
+  | ServerType.Follower
+  | ServerType.Candidate =>(state, #[], #[])
 
 @[export raft_handle_message]
 def raft_handle_message

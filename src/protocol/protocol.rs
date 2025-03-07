@@ -20,4 +20,7 @@ pub trait Protocol {
     unsafe fn handle_packet(&mut self, packet: Packet<Self::Message>)
         -> Vec<Packet<Self::Message>>;
     unsafe fn check_output(&mut self, key: String) -> Option<String>;
+
+    unsafe fn handle_timeout(&mut self) -> Vec<Packet<Self::Message>>;
+    unsafe fn send_heartbeat(&mut self) -> Vec<Packet<Self::Message>>;
 }
