@@ -12,6 +12,9 @@ use tokio::{io, io::AsyncBufReadExt, select};
 // (keypair in pkcs8 as der): openssl pkcs8 -in private.pem -inform PEM -topk8 -out private.pk8 -outform DER -nocrypt
 // (pubkey in x509 as der): openssl rsa -in private.pem -pubout -out public.der -outform DER
 
+// intended to be ran from crate base directory
+const BASE_DIR: &str = "examples/keys";
+
 fn parse_public_key(path: &str) -> PeerId {
     let public_key_raw = std::fs::read(path).unwrap();
     let public_key: PublicKey = rsa::PublicKey::try_decode_x509(public_key_raw.as_slice())
@@ -25,7 +28,7 @@ fn start_replica(node_num: usize, all_nodes: &Vec<PeerId>, init_lean: bool) -> N
     assert!(!all_nodes.is_empty());
 
     // parse identity keypair for current node
-    let private_key_path = format!("keys/private{node_num}.pk8");
+    let private_key_path = format!("{BASE_DIR}/private{node_num}.pk8");
     let mut identity_raw = std::fs::read(private_key_path).unwrap();
     let identity = Keypair::rsa_from_pkcs8(&mut identity_raw).unwrap();
 
@@ -84,7 +87,7 @@ async fn main() {
     // use keys 2 - 4 as replicas
     let total_nodes = 4;
     let all_nodes: Vec<PeerId> = (1..=total_nodes)
-        .map(|i| format!("keys/public{i}.der"))
+        .map(|i| format!("{BASE_DIR}/public{i}.der"))
         .map(|pk_path| parse_public_key(&pk_path))
         .collect();
 
