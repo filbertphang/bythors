@@ -1,10 +1,11 @@
 use crate::marshal::string::lean_string_to_rust;
 use lean_sys::*;
+use log::debug;
 
 /// For crate-internal debugging only. Explains what this lean object is.
 #[allow(dead_code)]
 pub unsafe fn what_is_this(s: &str, o: *mut lean_object) {
-    println!(
+    debug!(
             "\n === what is {s}? === \n {s} is string? {}.\n {s} is ref? {}.\n {s} is ctor? {}.\n {s} is scalar? {}.\n {s} is thunk? {}.\n ====== \n",
             lean_is_string(o),
             lean_is_ref(o),
@@ -14,7 +15,7 @@ pub unsafe fn what_is_this(s: &str, o: *mut lean_object) {
         );
 
     if lean_is_ctor(o) {
-        println!(
+        debug!(
             "since {s} is a constructor:\n
             ctor tag: {},
             num objs: {}
@@ -47,7 +48,7 @@ pub unsafe fn what_is_this(s: &str, o: *mut lean_object) {
 pub extern "C" fn rust_print(s: *mut lean_object) -> *mut lean_object {
     unsafe {
         let s = lean_string_to_rust(s, false);
-        println!("(lean): {s}");
+        debug!("(lean): {s}");
     }
     s
 }

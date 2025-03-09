@@ -107,7 +107,7 @@ where
         let event = self.swarm.select_next_some().await;
         match event {
             SwarmEvent::NewListenAddr { address, .. } => {
-                println!("Listening on {address:?}");
+                info!("Listening on {address:?}");
                 NetworkPollResult::OtherEvent
             }
 

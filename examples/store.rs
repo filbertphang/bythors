@@ -116,7 +116,7 @@ async fn main() {
                     match command {
                         Some(Command::Get { key }) => {
                             let res = network.check_output(key.clone());
-                            println!("GET key {key}: found {res:#?}");
+                            println!("GET key {key}: found {res:?}");
                         },
                         Some(Command::Put { key, val }) => {
                             network.broadcast((key.clone(), val.clone()));
