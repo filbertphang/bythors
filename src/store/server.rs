@@ -1,19 +1,14 @@
-use bythors::network::{Network, NetworkPollResult};
-use bythors::protocol::raft::Raft;
+use crate::network::{Network, NetworkPollResult};
+use crate::protocol::raft::Raft;
 use libp2p::identity::{rsa, Keypair, PeerId, PublicKey};
 use log::info;
 use std::pin::Pin;
 use std::time::Duration;
+use tokio::select;
 use tokio::time::{Instant, Sleep};
-use tokio::{io, io::AsyncBufReadExt, select};
-
-// key generation
-// (keypair in pem): openssl genrsa -out private.pem 2048
-// (keypair in pkcs8 as der): openssl pkcs8 -in private.pem -inform PEM -topk8 -out private.pk8 -outform DER -nocrypt
-// (pubkey in x509 as der): openssl rsa -in private.pem -pubout -out public.der -outform DER
 
 // intended to be ran from crate base directory
-const BASE_DIR: &str = "examples/keys";
+const BASE_DIR: &str = "keys";
 
 fn parse_public_key(path: &str) -> PeerId {
     let public_key_raw = std::fs::read(path).unwrap();
@@ -43,7 +38,7 @@ enum Command {
     Put { key: String, val: String },
 }
 
-fn parse_command(raw_input: String) -> Option<Command> {
+fn parse_commandg(raw_input: String) -> Option<Command> {
     let res: Vec<&str> = raw_input.splitn(3, ' ').collect();
 
     if res.len() < 2 {
@@ -75,10 +70,15 @@ fn reset_heartbeat(heartbeat: Pin<&mut Sleep>, timeout: u64) {
     heartbeat.reset(deadline);
 }
 
+#[rocket::get("/<key>")]
+fn dummy(key: &str) -> String {
+    format!("hello, {key}")
+}
+
 /// a simple distributed key-value store (for strings),
 /// using the raft protocol
 #[tokio::main]
-async fn main() {
+pub async fn main() {
     env_logger::init();
     const ELECTION_TIMEOUT: u64 = 10000;
     const HEARTBEAT_INTERVAL: u64 = ELECTION_TIMEOUT / 4;
@@ -95,9 +95,16 @@ async fn main() {
     let local_set = tokio::task::LocalSet::new();
     let all_nodes_copy = all_nodes.clone();
     local_set.spawn_local(async move {
-        let mut stdin = io::BufReader::new(io::stdin()).lines();
+        // spawn libp2p network (for consensus)
+        // let mut stdin = io::BufReader::new(io::stdin()).lines();
         let mut network = start_replica(1, &all_nodes_copy, true);
         network.start().await;
+
+        // start server, to serve http requests
+        let _rocket = rocket::build()
+            .mount("/v2/keys", rocket::routes![dummy])
+            .launch()
+            .await;
 
         info!("master node ready!");
         // Future that indicates when a heartbeat has not been received for some time
@@ -111,20 +118,20 @@ async fn main() {
         loop {
             select! {
                 // handle stdin
-                Ok(Some(line)) = stdin.next_line() => {
-                    let command = parse_command(line.clone());
-                    match command {
-                        Some(Command::Get { key }) => {
-                            let res = network.check_output(key.clone());
-                            println!("GET key {key}: found {res:?}");
-                        },
-                        Some(Command::Put { key, val }) => {
-                            network.broadcast((key.clone(), val.clone()));
-                            println!("PUT key: {key} value: {val:#?}");
-                        },
-                        None => println!("invalid command: {line}"),
-                    }
-                }
+                // Ok(Some(line)) = stdin.next_line() => {
+                //     let command = parse_command(line.clone());
+                //     match command {
+                //         Some(Command::Get { key }) => {
+                //             let res = network.check_output(key.clone());
+                //             println!("GET key {key}: found {res:?}");
+                //         },
+                //         Some(Command::Put { key, val }) => {
+                //             network.broadcast((key.clone(), val.clone()));
+                //             println!("PUT key: {key} value: {val:#?}");
+                //         },
+                //         None => println!("invalid command: {line}"),
+                //     }
+                // }
 
                 // heartbeat not received: send timeout
                 () = &mut heartbeat_timeout => {
