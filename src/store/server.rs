@@ -1,12 +1,11 @@
 use crate::network::{Network, NetworkPollResult};
 use crate::protocol::raft::Raft;
-use crate::store::shutdown;
+use crate::store::{heartbeat, shutdown};
 use libp2p::identity::{rsa, Keypair, PeerId, PublicKey};
 use log::info;
-use std::pin::Pin;
-use std::time::Duration;
+use std::net::SocketAddr;
 use tokio::io::AsyncBufReadExt;
-use tokio::time::{Instant, Sleep};
+use tokio::net::TcpListener;
 use tokio::{io, select};
 
 // intended to be ran from crate base directory
@@ -35,42 +34,13 @@ fn start_replica(node_num: usize, all_nodes: &Vec<PeerId>, init_lean: bool) -> N
     network
 }
 
-enum Command {
-    Get { key: String },
-    Put { key: String, val: String },
-}
-
-fn parse_command(raw_input: String) -> Option<Command> {
-    let res: Vec<&str> = raw_input.splitn(3, ' ').collect();
-
-    if res.len() < 2 {
-        return None;
-    }
-
-    let command = res[0].trim().to_uppercase();
-    match command.as_str() {
-        "GET" => Some(res).filter(|v| v.len() == 2).map(|v| Command::Get {
-            key: v[1].trim().to_string(),
-        }),
-        "PUT" => Some(res).filter(|v| v.len() == 3).map(|v| Command::Put {
-            key: v[1].trim().to_string(),
-            val: v[2].trim().to_string(),
-        }),
-        _ => None,
-    }
-}
-
-fn randomize_timeout(timeout: u64) -> Duration {
-    Duration::from_millis(rand::random_range(timeout..=(2 * timeout)))
-}
-
-fn reset_heartbeat(heartbeat: Pin<&mut Sleep>, timeout: u64) {
-    let timeout_duration = randomize_timeout(timeout);
-    let deadline = Instant::now()
-        .checked_add(timeout_duration)
-        .expect("should be able to create new deadline");
-    heartbeat.reset(deadline);
-}
+// TODO:
+// one node per process
+// multiple task?? for handling tcp connections (can be on same thread)
+// get multiple tcp connections, each connection just pushes the shit onto a mpsc channel? read-only
+// ^ this can live in its own thread
+// in the main thread, we poll for a new message, and process it, and write to idk another channel maybe
+// nask jdhaskjhdksahjsakjhsakhsakjhaskjh
 
 /// a simple distributed key-value store (for strings),
 /// using the raft protocol
@@ -102,13 +72,22 @@ pub async fn main() {
         let mut network = start_replica(1, &all_nodes_copy, true);
         network.start().await;
 
+        // set up tcp listener to handle client connections
+        let host = "127.0.0.1";
+        let port = "8080";
+        let addr = format!("{host}:{port}");
+        let tcp_listener = TcpListener::bind(addr)
+            .await
+            .expect("should be able to create tcp listener");
+        // let mut cons = HashMap<SocketAddr,
+
         info!("master node ready!");
         // Future that indicates when a heartbeat has not been received for some time
-        let heartbeat_timeout = tokio::time::sleep(randomize_timeout(ELECTION_TIMEOUT));
+        let heartbeat_timeout = heartbeat::new_random(ELECTION_TIMEOUT);
         tokio::pin!(heartbeat_timeout);
 
         // Future that is resolved whenever a leader should send a heartbeat
-        let should_send_heartbeat = tokio::time::sleep(randomize_timeout(HEARTBEAT_INTERVAL));
+        let should_send_heartbeat = heartbeat::new_random(HEARTBEAT_INTERVAL);
         tokio::pin!(should_send_heartbeat);
 
         loop {
@@ -146,7 +125,7 @@ pub async fn main() {
                 () = &mut should_send_heartbeat => {
                     network.send_heartbeat();
                     // reset the timer for the next one
-                    reset_heartbeat(should_send_heartbeat.as_mut(), HEARTBEAT_INTERVAL);
+                    heartbeat::reset(should_send_heartbeat.as_mut(), HEARTBEAT_INTERVAL);
                 }
 
                 // poll the network driver, to process new connections and events.
@@ -154,7 +133,7 @@ pub async fn main() {
                     match res {
                         NetworkPollResult::ProtocolEvent => {
                             // reset the heartbeat timer
-                            reset_heartbeat(heartbeat_timeout.as_mut(), ELECTION_TIMEOUT);
+                            heartbeat::reset(heartbeat_timeout.as_mut(), ELECTION_TIMEOUT);
                         }
                         NetworkPollResult::OtherEvent => {}
                     }
@@ -181,11 +160,11 @@ pub async fn main() {
 
             info!("replica {i} ready!");
             // Future that indicates when a heartbeat has not been received for some time
-            let heartbeat_timeout = tokio::time::sleep(randomize_timeout(ELECTION_TIMEOUT));
+            let heartbeat_timeout = heartbeat::new_random(ELECTION_TIMEOUT);
             tokio::pin!(heartbeat_timeout);
 
             // Future that is resolved whenever a leader should send a heartbeat
-            let should_send_heartbeat = tokio::time::sleep(randomize_timeout(HEARTBEAT_INTERVAL));
+            let should_send_heartbeat = heartbeat::new_random(HEARTBEAT_INTERVAL);
             tokio::pin!(should_send_heartbeat);
 
             loop {
@@ -202,7 +181,7 @@ pub async fn main() {
                     () = &mut should_send_heartbeat => {
                         network.send_heartbeat();
                         // reset the timer for the next one
-                        reset_heartbeat(should_send_heartbeat.as_mut(), HEARTBEAT_INTERVAL);
+                        heartbeat::reset(should_send_heartbeat.as_mut(), HEARTBEAT_INTERVAL);
                     }
 
                     // poll the network driver, to process new connections and events.
@@ -210,7 +189,7 @@ pub async fn main() {
                         match res {
                             NetworkPollResult::ProtocolEvent => {
                                 // reset the heartbeat timer
-                                reset_heartbeat(heartbeat_timeout.as_mut(), ELECTION_TIMEOUT);
+                                heartbeat::reset(heartbeat_timeout.as_mut(), ELECTION_TIMEOUT);
                             }
                             NetworkPollResult::OtherEvent => {}
                         }

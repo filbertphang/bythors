@@ -1,3 +1,5 @@
+mod command;
+mod heartbeat;
 mod server;
 mod shutdown;
 
