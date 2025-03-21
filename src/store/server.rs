@@ -72,11 +72,6 @@ fn reset_heartbeat(heartbeat: Pin<&mut Sleep>, timeout: u64) {
     heartbeat.reset(deadline);
 }
 
-#[rocket::get("/<key>")]
-fn dummy(key: &str) -> String {
-    format!("hello, {key}")
-}
-
 /// a simple distributed key-value store (for strings),
 /// using the raft protocol
 #[tokio::main]
@@ -106,12 +101,6 @@ pub async fn main() {
         let mut stdin = io::BufReader::new(io::stdin()).lines();
         let mut network = start_replica(1, &all_nodes_copy, true);
         network.start().await;
-
-        // start server, to serve http requests
-        let _rocket = rocket::build()
-            .mount("/v2/keys", rocket::routes![dummy])
-            .launch()
-            .await;
 
         info!("master node ready!");
         // Future that indicates when a heartbeat has not been received for some time
