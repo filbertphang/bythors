@@ -1,11 +1,13 @@
 use crate::network::{Network, NetworkPollResult};
 use crate::protocol::raft::Raft;
+use crate::store::shutdown;
 use libp2p::identity::{rsa, Keypair, PeerId, PublicKey};
 use log::info;
 use std::pin::Pin;
 use std::time::Duration;
-use tokio::select;
+use tokio::io::AsyncBufReadExt;
 use tokio::time::{Instant, Sleep};
+use tokio::{io, select};
 
 // intended to be ran from crate base directory
 const BASE_DIR: &str = "keys";
@@ -38,7 +40,7 @@ enum Command {
     Put { key: String, val: String },
 }
 
-fn parse_commandg(raw_input: String) -> Option<Command> {
+fn parse_command(raw_input: String) -> Option<Command> {
     let res: Vec<&str> = raw_input.splitn(3, ' ').collect();
 
     if res.len() < 2 {
@@ -91,12 +93,17 @@ pub async fn main() {
         .map(|pk_path| parse_public_key(&pk_path))
         .collect();
 
+    // create shutdown receivers
+    let (shutdown_bcast, _) = tokio::sync::broadcast::channel(2);
+
     // launch master node
     let local_set = tokio::task::LocalSet::new();
     let all_nodes_copy = all_nodes.clone();
+
+    let shutdown_bcast_master = shutdown_bcast.clone();
     local_set.spawn_local(async move {
         // spawn libp2p network (for consensus)
-        // let mut stdin = io::BufReader::new(io::stdin()).lines();
+        let mut stdin = io::BufReader::new(io::stdin()).lines();
         let mut network = start_replica(1, &all_nodes_copy, true);
         network.start().await;
 
@@ -117,21 +124,29 @@ pub async fn main() {
 
         loop {
             select! {
-                // handle stdin
-                // Ok(Some(line)) = stdin.next_line() => {
-                //     let command = parse_command(line.clone());
-                //     match command {
-                //         Some(Command::Get { key }) => {
-                //             let res = network.check_output(key.clone());
-                //             println!("GET key {key}: found {res:?}");
-                //         },
-                //         Some(Command::Put { key, val }) => {
-                //             network.broadcast((key.clone(), val.clone()));
-                //             println!("PUT key: {key} value: {val:#?}");
-                //         },
-                //         None => println!("invalid command: {line}"),
-                //     }
-                // }
+                // handle stdin (only for quitting)
+                Ok(Some(line)) = stdin.next_line() => {
+                    if line == "q" {
+                        println!("quitting");
+                        // handle shutdown
+                        let _ = shutdown_bcast_master.send(());
+                        return;
+                    } else {
+                        println!("unrecognised: {line}");
+                    }
+                    // let command = parse_command(line.clone());
+                    // match command {
+                    //     Some(Command::Get { key }) => {
+                    //         let res = network.check_output(key.clone());
+                    //         println!("GET key {key}: found {res:?}");
+                    //     },
+                    //     Some(Command::Put { key, val }) => {
+                    //         network.broadcast((key.clone(), val.clone()));
+                    //         println!("PUT key: {key} value: {val:#?}");
+                    //     },
+                    //     None => println!("invalid command: {line}"),
+                    // }
+                }
 
                 // heartbeat not received: send timeout
                 () = &mut heartbeat_timeout => {
@@ -166,6 +181,8 @@ pub async fn main() {
         // probably not a good idea to share FFI stuff between threads, though
         // i'm not too sure how that interacts (e.g. will FFI pointers still be valid?)
         let all_nodes_copy = all_nodes.clone();
+        let shutdown_recv = shutdown_bcast.subscribe();
+        let mut shutdown = shutdown::Shutdown::new(shutdown_recv);
 
         local_set.spawn_local(async move {
             // lean can only be initialized once per process (else we segfault)
@@ -184,6 +201,9 @@ pub async fn main() {
 
             loop {
                 select! {
+                    // server shutdown
+                    () = shutdown.recv() => { return }
+
                     // heartbeat not received: send timeout
                     () = &mut heartbeat_timeout => {
                         network.timeout();
