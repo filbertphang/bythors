@@ -97,32 +97,25 @@ async fn start_node(
             // receive a new client request
             Ok((req, addr)) = request_rx.recv() => {
                 // check if leader
-                let res_opt = match network.is_leader() {
-                    false => Some(command::Response::NotLeader),
+                let res = match network.is_leader() {
+                    false => command::Response::NotLeader,
                     true => match req {
                         command::Request::Get { key } => {
                             let val = network.check_output(key.clone());
                             debug!("(logic): GET key <{key}>: found <{val:?}>");
-                            Some(command::Response::GetR {key, val})
+                            command::Response::GetR {key, val}
                         },
                         command::Request::Put { key, val } => {
                             network.broadcast((key.clone(), val.clone()));
                             debug!("(logic): PUT key: <{key}> value: <{val:#?}>");
-                            None
+                            command::Response::PutR {key, val}
                         },
                     }
                 };
 
-                println!("(logic): responding with {res_opt:?}");
-
-                // send the response, if any
-                match res_opt {
-                    None => (),
-                    Some(res) => {
-                        let x = response_tx.send((res, addr)).expect("should be able to send response");
-                        debug!("(logic): response sent to {x} receivers");
-                    }
-                };
+                println!("(logic): responding with {res:?}");
+                let n = response_tx.send((res, addr)).expect("should be able to send response");
+                debug!("(logic): response sent to {n} receivers");
             }
 
             // poll the network driver, to process new connections and events.
@@ -146,6 +139,7 @@ async fn start_client_handler(
     mut response_rx: broadcast::Receiver<(command::Response, SocketAddr)>,
     shutdown_rx: broadcast::Receiver<()>,
 ) {
+    // TODO: properly shut down when the tcp connection is closed
     let mut shutdown = shutdown::Shutdown::new(shutdown_rx);
     info!("({addr}): started");
 

@@ -7,6 +7,7 @@ pub enum Request {
 #[derive(Debug, Clone)]
 pub enum Response {
     GetR { key: String, val: Option<String> },
+    PutR { key: String, val: String },
     NotLeader,
 }
 
@@ -40,6 +41,7 @@ pub fn pack_response(res: Response) -> Vec<u8> {
             let val_s = val.unwrap_or(String::from("-"));
             format!("Response 0 {key} {val_s} -")
         }
+        Response::PutR { key, val } => format!("Response 0 {key} {val} -"),
         Response::NotLeader => String::from("NotLeader"),
     };
 
