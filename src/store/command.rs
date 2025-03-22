@@ -12,7 +12,6 @@ pub enum Response {
 }
 
 pub fn parse_request(raw_input: String) -> Option<Request> {
-    println!("received: {raw_input}");
     // input format:
     // <client id> <request id> <cmd> <arg1> <arg2>
     //     0            1         2     3      4

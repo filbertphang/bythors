@@ -12,7 +12,7 @@ use tokio::net::TcpListener;
 use tokio::sync::broadcast;
 use tokio::{io, select};
 
-const BCAST_CHANNEL_CAPACITY: usize = 32;
+const BCAST_CHANNEL_CAPACITY: usize = 1024;
 
 #[derive(Parser, Clone)]
 struct Args {
@@ -113,7 +113,7 @@ async fn start_node(
                     }
                 };
 
-                println!("(logic): responding with {res:?}");
+                info!("(logic): responding with {res:?}");
                 let n = response_tx.send((res, addr)).expect("should be able to send response");
                 debug!("(logic): response sent to {n} receivers");
             }
@@ -190,7 +190,7 @@ async fn start_client_handler(
 
                 // parse message into a Request
                 let msg_str = String::from_utf8(buf).expect("should be able to convert msg into string");
-                println!("({addr}): received {msg_str}");
+                info!("({addr}): received {msg_str}");
                 let req = command::parse_request(msg_str).expect("message should be well-formed");
 
                 // send message to request channel
@@ -204,7 +204,9 @@ async fn start_client_handler(
 
 /// a simple distributed key-value store (for strings), using the raft protocol
 /// each instance runs a single node/replica, running across several threads:
-/// - (driver thread)  handles cli-input from the user and accepts incoming tcp connections
+/// - (server thread)  handles cli-input from the user and accepts incoming tcp connections.
+///                    for an instance with node number n, the server runs on port (8000 + n).
+///                    node number is 1-indexed.
 /// - (consensus thread) handles communication within the network, i.e., it talks to other nodes
 ///   to reach consensus
 /// - (client handler threads) handle communication with clients, i.e. it recieves requests and sends
