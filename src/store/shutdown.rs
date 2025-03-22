@@ -30,6 +30,7 @@ impl Shutdown {
         }
     }
 
+    #[allow(dead_code)]
     /// Returns `true` if the shutdown signal has been received.
     pub(crate) fn is_shutdown(&self) -> bool {
         self.is_shutdown

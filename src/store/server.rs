@@ -1,15 +1,34 @@
+use std::net::SocketAddr;
+
 use crate::network::{Network, NetworkPollResult};
 use crate::protocol::raft::Raft;
-use crate::store::{heartbeat, shutdown};
+use crate::store::{command, heartbeat, shutdown};
+
+use clap::Parser;
 use libp2p::identity::{rsa, Keypair, PeerId, PublicKey};
 use log::info;
-use std::net::SocketAddr;
-use tokio::io::AsyncBufReadExt;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
+use tokio::sync::broadcast;
 use tokio::{io, select};
 
-// intended to be ran from crate base directory
-const BASE_DIR: &str = "keys";
+const BCAST_CHANNEL_CAPACITY: usize = 32;
+
+#[derive(Parser, Clone)]
+struct Args {
+    node_number: usize,
+    total_nodes: usize,
+
+    #[arg(default_value_t = 10000)]
+    election_timeout: u64,
+
+    #[arg(default_value_t = 2500)]
+    heartbeat_interval: u64,
+
+    // intended to be run from the crate base directory
+    #[arg(default_value_t = String::from("keys"))]
+    base_dir: String,
+}
 
 fn parse_public_key(path: &str) -> PeerId {
     let public_key_raw = std::fs::read(path).unwrap();
@@ -20,57 +39,186 @@ fn parse_public_key(path: &str) -> PeerId {
     peer_id
 }
 
-fn start_replica(node_num: usize, all_nodes: &Vec<PeerId>, init_lean: bool) -> Network<Raft> {
+async fn start_node(
+    args: Args,
+    all_nodes: &Vec<PeerId>,
+    shutdown_rx: broadcast::Receiver<()>,
+    mut request_rx: broadcast::Receiver<(command::Request, SocketAddr)>,
+    response_tx: broadcast::Sender<(command::Response, SocketAddr)>,
+) {
     assert!(!all_nodes.is_empty());
 
+    // === initialization ===
+
     // parse identity keypair for current node
-    let private_key_path = format!("{BASE_DIR}/private{node_num}.pk8");
+    let private_key_path = format!("{}/private{}.pk8", args.base_dir, args.node_number);
     let mut identity_raw = std::fs::read(private_key_path).unwrap();
     let identity = Keypair::rsa_from_pkcs8(&mut identity_raw).unwrap();
 
-    // init network
-    let network: Network<Raft> =
-        Network::initialize(identity, all_nodes, &all_nodes[0], init_lean).unwrap();
-    network
+    // set up  network
+    let mut network: Network<Raft> =
+        Network::initialize(identity, all_nodes, &all_nodes[0], true).unwrap();
+
+    // Future that indicates when a heartbeat has not been received for some time
+    let heartbeat_timeout = heartbeat::new_random(args.election_timeout);
+    tokio::pin!(heartbeat_timeout);
+
+    // Future that is resolved whenever a leader should send a heartbeat
+    let should_send_heartbeat = heartbeat::new_random(args.heartbeat_interval);
+    tokio::pin!(should_send_heartbeat);
+
+    // future to trigger shutdown
+    let mut shutdown = shutdown::Shutdown::new(shutdown_rx);
+
+    // === event loop ===
+    info!("node {} ready!", args.node_number);
+    loop {
+        select! {
+            // server shutdown
+            () = shutdown.recv() => { return }
+
+            // heartbeat not received: send timeout
+            () = &mut heartbeat_timeout => {
+                network.timeout();
+            }
+
+            // time to send a heartbeat
+            () = &mut should_send_heartbeat => {
+                network.send_heartbeat();
+                // reset the timer for the next one
+                heartbeat::reset(should_send_heartbeat.as_mut(), args.heartbeat_interval);
+            }
+
+            // receive a new client request
+            Ok((req, addr)) = request_rx.recv() => {
+                match req {
+                    command::Request::Get { key } => {
+                        let val = network.check_output(key.clone());
+                        println!("GET key {key}: found {val:?}");
+                        let res = command::Response::GetR {key, val};
+                        response_tx.send((res, addr)).expect("should be able to send response");
+                    },
+                    command::Request::Put { key, val } => {
+                        network.broadcast((key.clone(), val.clone()));
+                        println!("PUT key: {key} value: {val:#?}");
+                    },
+                }
+            }
+
+            // poll the network driver, to process new connections and events.
+            res = network.poll() => {
+                match res {
+                    NetworkPollResult::ProtocolEvent => {
+                        // reset the heartbeat timer
+                        heartbeat::reset(heartbeat_timeout.as_mut(), args.election_timeout);
+                    }
+                    NetworkPollResult::OtherEvent => {}
+                }
+            }
+        }
+    }
 }
 
-// TODO:
-// one node per process
-// multiple task?? for handling tcp connections (can be on same thread)
-// get multiple tcp connections, each connection just pushes the shit onto a mpsc channel? read-only
-// ^ this can live in its own thread
-// in the main thread, we poll for a new message, and process it, and write to idk another channel maybe
-// nask jdhaskjhdksahjsakjhsakhsakjhaskjh
+async fn start_client_handler(
+    mut tcp_stream: tokio::net::TcpStream,
+    addr: SocketAddr,
+    request_tx: broadcast::Sender<(command::Request, SocketAddr)>,
+    mut response_rx: broadcast::Receiver<(command::Response, SocketAddr)>,
+) {
+    loop {
+        // ensure tcp stream is readable
+        tcp_stream
+            .readable()
+            .await
+            .expect("tcp stream should be readable");
 
-/// a simple distributed key-value store (for strings),
-/// using the raft protocol
+        // drive event loop
+        tokio::select! {
+            // new response to forward to client
+            Ok((res, res_addr)) = response_rx.recv() => {
+                // this message is intended for this client handler
+                if res_addr == addr {
+                    // construct response message
+                    let res_bytes = command::pack_response(res);
+                    let res_len: u32 = res_bytes.len().try_into().expect("response message length should fit into a u32");
+
+                    // write response to tcp stream
+                    tcp_stream.writable().await.expect("tcp stream should be writable");
+                    tcp_stream.write_u32_le(res_len).await.expect("should be able to write msg length to tcp stream");
+                    tcp_stream.write(&res_bytes).await.expect("should be able to write message to tcp stream");
+                }
+            }
+
+            // new client request
+            Ok(msg_len) = tcp_stream.read_u32_le() => {
+                // read message length
+                let msg_len : usize = msg_len.try_into().expect("should be able to convert a u32 to a usize");
+
+                // read actual message into buf
+                let mut buf = vec![0u8; msg_len];
+                tcp_stream
+                    .read_exact(&mut buf)
+                    .await
+                    .expect("should be able to read msg from tcp stream");
+
+                // parse message into a Request
+                let msg_str = String::from_utf8(buf).expect("should be able to convert msg into string");
+                let req = command::parse_request(msg_str).expect("message should be well-formed");
+
+                // send message to request channel
+                request_tx
+                    .send((req, addr))
+                    .expect("should be able to forward request");
+            }
+        }
+    }
+}
+
+/// a simple distributed key-value store (for strings), using the raft protocol
+/// each instance runs a single node/replica, running across several threads:
+/// - (driver thread)  handles cli-input from the user and accepts incoming tcp connections
+/// - (consensus thread) handles communication within the network, i.e., it talks to other nodes
+///   to reach consensus
+/// - (client handler threads) handle communication with clients, i.e. it recieves requests and sends
+///   responses from/to clients
 #[tokio::main]
 pub async fn main() {
     env_logger::init();
-    const ELECTION_TIMEOUT: u64 = 10000;
-    const HEARTBEAT_INTERVAL: u64 = ELECTION_TIMEOUT / 4;
+
+    // parse command-line args
+    let args = Args::parse();
 
     // use key 1 as master node
     // use keys 2 - 4 as replicas
-    let total_nodes = 4;
-    let all_nodes: Vec<PeerId> = (1..=total_nodes)
-        .map(|i| format!("{BASE_DIR}/public{i}.der"))
+    let all_nodes: Vec<PeerId> = (1..=args.total_nodes)
+        .map(|i| format!("{}/public{}.der", args.base_dir, i))
         .map(|pk_path| parse_public_key(&pk_path))
         .collect();
 
-    // create shutdown receivers
-    let (shutdown_bcast, _) = tokio::sync::broadcast::channel(2);
+    // create shutdown channel
+    let (shutdown_tx, shutdown_rx) = broadcast::channel(BCAST_CHANNEL_CAPACITY);
 
-    // launch master node
-    let local_set = tokio::task::LocalSet::new();
-    let all_nodes_copy = all_nodes.clone();
+    // create command channels
+    let (request_tx, request_rx) = broadcast::channel(BCAST_CHANNEL_CAPACITY);
+    let (response_tx, response_rx) = broadcast::channel(BCAST_CHANNEL_CAPACITY);
 
-    let shutdown_bcast_master = shutdown_bcast.clone();
-    local_set.spawn_local(async move {
+    // spawn logic thread
+    let mut tasks = tokio::task::JoinSet::new();
+    tasks.spawn_local(async move {
+        start_node(
+            args.clone(),
+            &all_nodes,
+            shutdown_rx,
+            request_rx,
+            response_tx,
+        )
+        .await
+    });
+
+    // driver thread (this thread)
+    tasks.spawn(async move {
         // spawn libp2p network (for consensus)
         let mut stdin = io::BufReader::new(io::stdin()).lines();
-        let mut network = start_replica(1, &all_nodes_copy, true);
-        network.start().await;
 
         // set up tcp listener to handle client connections
         let host = "127.0.0.1";
@@ -79,16 +227,8 @@ pub async fn main() {
         let tcp_listener = TcpListener::bind(addr)
             .await
             .expect("should be able to create tcp listener");
-        // let mut cons = HashMap<SocketAddr,
 
-        info!("master node ready!");
-        // Future that indicates when a heartbeat has not been received for some time
-        let heartbeat_timeout = heartbeat::new_random(ELECTION_TIMEOUT);
-        tokio::pin!(heartbeat_timeout);
-
-        // Future that is resolved whenever a leader should send a heartbeat
-        let should_send_heartbeat = heartbeat::new_random(HEARTBEAT_INTERVAL);
-        tokio::pin!(should_send_heartbeat);
+        info!("driver thread ready!");
 
         loop {
             select! {
@@ -97,107 +237,24 @@ pub async fn main() {
                     if line == "q" {
                         println!("quitting");
                         // handle shutdown
-                        let _ = shutdown_bcast_master.send(());
+                        let _ = shutdown_tx.send(());
                         return;
                     } else {
                         println!("unrecognised: {line}");
                     }
-                    // let command = parse_command(line.clone());
-                    // match command {
-                    //     Some(Command::Get { key }) => {
-                    //         let res = network.check_output(key.clone());
-                    //         println!("GET key {key}: found {res:?}");
-                    //     },
-                    //     Some(Command::Put { key, val }) => {
-                    //         network.broadcast((key.clone(), val.clone()));
-                    //         println!("PUT key: {key} value: {val:#?}");
-                    //     },
-                    //     None => println!("invalid command: {line}"),
-                    // }
                 }
 
-                // heartbeat not received: send timeout
-                () = &mut heartbeat_timeout => {
-                    network.timeout();
+                // handle new tcp connection
+                Ok((tcp_stream, addr)) = tcp_listener.accept() => {
+                    // todo
                 }
 
-                // time to send a heartbeat
-                () = &mut should_send_heartbeat => {
-                    network.send_heartbeat();
-                    // reset the timer for the next one
-                    heartbeat::reset(should_send_heartbeat.as_mut(), HEARTBEAT_INTERVAL);
-                }
-
-                // poll the network driver, to process new connections and events.
-                res = network.poll() => {
-                    match res {
-                        NetworkPollResult::ProtocolEvent => {
-                            // reset the heartbeat timer
-                            heartbeat::reset(heartbeat_timeout.as_mut(), ELECTION_TIMEOUT);
-                        }
-                        NetworkPollResult::OtherEvent => {}
-                    }
-                }
             }
         }
     });
-
-    // launch replicas
-    for i in 2..=total_nodes {
-        // using `spawn_local` because otherwise, Network<T> must be Send
-        // (due to tokio::spawn requirements)
-        // probably not a good idea to share FFI stuff between threads, though
-        // i'm not too sure how that interacts (e.g. will FFI pointers still be valid?)
-        let all_nodes_copy = all_nodes.clone();
-        let shutdown_recv = shutdown_bcast.subscribe();
-        let mut shutdown = shutdown::Shutdown::new(shutdown_recv);
-
-        local_set.spawn_local(async move {
-            // lean can only be initialized once per process (else we segfault)
-            // so, we skip initialzing in the replica threads
-            let mut network = start_replica(i, &all_nodes_copy, false);
-            network.start().await;
-
-            info!("replica {i} ready!");
-            // Future that indicates when a heartbeat has not been received for some time
-            let heartbeat_timeout = heartbeat::new_random(ELECTION_TIMEOUT);
-            tokio::pin!(heartbeat_timeout);
-
-            // Future that is resolved whenever a leader should send a heartbeat
-            let should_send_heartbeat = heartbeat::new_random(HEARTBEAT_INTERVAL);
-            tokio::pin!(should_send_heartbeat);
-
-            loop {
-                select! {
-                    // server shutdown
-                    () = shutdown.recv() => { return }
-
-                    // heartbeat not received: send timeout
-                    () = &mut heartbeat_timeout => {
-                        network.timeout();
-                    }
-
-                    // time to send a heartbeat
-                    () = &mut should_send_heartbeat => {
-                        network.send_heartbeat();
-                        // reset the timer for the next one
-                        heartbeat::reset(should_send_heartbeat.as_mut(), HEARTBEAT_INTERVAL);
-                    }
-
-                    // poll the network driver, to process new connections and events.
-                    res = network.poll() => {
-                        match res {
-                            NetworkPollResult::ProtocolEvent => {
-                                // reset the heartbeat timer
-                                heartbeat::reset(heartbeat_timeout.as_mut(), ELECTION_TIMEOUT);
-                            }
-                            NetworkPollResult::OtherEvent => {}
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    local_set.await
 }
+
+// let command = parse_command(line.clone());
+// match command {
+//     None => println!("invalid command: {line}"),
+// }
