@@ -35,9 +35,9 @@ pub fn parse_request(raw_input: String) -> Option<Request> {
 
 pub fn pack_response(res: Response) -> Vec<u8> {
     let res_str = match res {
-        Response::GetR { key: _, val } => {
-            let val_s = val.unwrap_or(String::from("None"));
-            format!("Response 0 - {val_s} -")
+        Response::GetR { key, val } => {
+            let val_s = val.unwrap_or(String::from("-"));
+            format!("Response 0 {key} {val_s} -")
         }
         Response::NotLeader => String::from("NotLeader"),
     };

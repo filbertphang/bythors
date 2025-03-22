@@ -6,7 +6,7 @@ use crate::store::{command, heartbeat, shutdown};
 
 use clap::Parser;
 use libp2p::identity::{rsa, Keypair, PeerId, PublicKey};
-use log::info;
+use log::{debug, info};
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
 use tokio::sync::broadcast;
@@ -96,18 +96,33 @@ async fn start_node(
 
             // receive a new client request
             Ok((req, addr)) = request_rx.recv() => {
-                match req {
-                    command::Request::Get { key } => {
-                        let val = network.check_output(key.clone());
-                        println!("GET key {key}: found {val:?}");
-                        let res = command::Response::GetR {key, val};
-                        response_tx.send((res, addr)).expect("should be able to send response");
-                    },
-                    command::Request::Put { key, val } => {
-                        network.broadcast((key.clone(), val.clone()));
-                        println!("PUT key: {key} value: {val:#?}");
-                    },
-                }
+                // check if leader
+                let res_opt = match network.is_leader() {
+                    false => Some(command::Response::NotLeader),
+                    true => match req {
+                        command::Request::Get { key } => {
+                            let val = network.check_output(key.clone());
+                            debug!("(logic): GET key <{key}>: found <{val:?}>");
+                            Some(command::Response::GetR {key, val})
+                        },
+                        command::Request::Put { key, val } => {
+                            network.broadcast((key.clone(), val.clone()));
+                            debug!("(logic): PUT key: <{key}> value: <{val:#?}>");
+                            None
+                        },
+                    }
+                };
+
+                println!("(logic): responding with {res_opt:?}");
+
+                // send the response, if any
+                match res_opt {
+                    None => (),
+                    Some(res) => {
+                        let x = response_tx.send((res, addr)).expect("should be able to send response");
+                        debug!("(logic): response sent to {x} receivers");
+                    }
+                };
             }
 
             // poll the network driver, to process new connections and events.
@@ -135,6 +150,12 @@ async fn start_client_handler(
     info!("({addr}): started");
 
     loop {
+        // wait for tcp stream to be readable
+        tcp_stream
+            .readable()
+            .await
+            .expect("tcp stream should be readable");
+
         // drive event loop
         tokio::select! {
             // shutdown signal received
@@ -142,8 +163,10 @@ async fn start_client_handler(
 
             // new response to forward to client
             Ok((res, res_addr)) = response_rx.recv() => {
+                debug!("({addr}): received response {res:?} for {res_addr}");
                 // this message is intended for this client handler
                 if res_addr == addr {
+                    info!("({addr}): responding with {res:?}");
                     // construct response message
                     let res_bytes = command::pack_response(res);
                     let res_len: u32 = res_bytes.len().try_into().expect("response message length should fit into a u32");
@@ -152,16 +175,15 @@ async fn start_client_handler(
                     tcp_stream.writable().await.expect("tcp stream should be writable");
                     tcp_stream.write_u32_le(res_len).await.expect("should be able to write msg length to tcp stream");
                     tcp_stream.write(&res_bytes).await.expect("should be able to write message to tcp stream");
+
+                    info!("({addr}): done responding");
                 }
             }
 
             // new client request
-            Ok(()) = tcp_stream.readable() => {
+            Ok(msg_len) = tcp_stream.read_u32_le() => {
                 // read message length
-                let msg_len : usize = tcp_stream
-                    .read_u32_le()
-                    .await
-                    .expect("should be able to read request len")
+                let msg_len : usize = msg_len
                     .try_into()
                     .expect("should be able to convert a u32 to a usize");
 
@@ -217,7 +239,7 @@ pub async fn main() {
     // spawn driver thread
     let response_tx_driver = response_tx.clone();
     tokio::task::spawn(async move {
-        // spawn libp2p network (for consensus)
+        // TODO: see if stdin handling is still necessary
         let mut stdin = io::BufReader::new(io::stdin()).lines();
 
         // set up tcp listener to handle client connections
