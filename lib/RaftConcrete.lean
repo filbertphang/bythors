@@ -154,4 +154,4 @@ def raft_convert_entry_list_to_arr
 
 @[export raft_is_leader]
 def raft_is_leader (state: ConcreteRaftData) : Bool :=
-  state.type == ServerType.Follower
+  state.type == ServerType.Leader

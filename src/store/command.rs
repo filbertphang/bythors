@@ -11,6 +11,7 @@ pub enum Response {
 }
 
 pub fn parse_request(raw_input: String) -> Option<Request> {
+    println!("received: {raw_input}");
     // input format:
     // <client id> <request id> <cmd> <arg1> <arg2>
     //     0            1         2     3      4
@@ -22,10 +23,10 @@ pub fn parse_request(raw_input: String) -> Option<Request> {
 
     let command = res[2].trim().to_uppercase();
     match command.as_str() {
-        "GET" => Some(res).filter(|v| v.len() == 4).map(|v| Request::Get {
+        "GET" => Some(res).filter(|v| v.len() >= 4).map(|v| Request::Get {
             key: v[3].trim().to_string(),
         }),
-        "PUT" => Some(res).filter(|v| v.len() == 5).map(|v| Request::Put {
+        "PUT" => Some(res).filter(|v| v.len() >= 5).map(|v| Request::Put {
             key: v[3].trim().to_string(),
             val: v[4].trim().to_string(),
         }),
