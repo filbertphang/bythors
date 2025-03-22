@@ -252,4 +252,8 @@ where
         let packets_to_send = unsafe { self.protocol.send_heartbeat() };
         self.transmit(packets_to_send);
     }
+
+    pub fn is_leader(&mut self) -> bool {
+        unsafe { self.protocol.is_leader() }
+    }
 }

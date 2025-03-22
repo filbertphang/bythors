@@ -148,6 +148,13 @@ impl Protocol for Raft {
         self.node_state = new_state; // update node state
         packets_to_send
     }
+
+    unsafe fn is_leader(&mut self) -> bool {
+        lean_inc(self.node_state);
+        let res = lean_extern::raft_is_leader(self.node_state);
+        // lean treats bools as u8, need to 'cast' to a proper boolean
+        res == 1
+    }
 }
 
 unsafe fn deconstruct_state_and_packets(
