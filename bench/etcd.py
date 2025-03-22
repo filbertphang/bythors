@@ -1,5 +1,4 @@
-import httplib
-import urllib
+import urllib3
 
 class Client(object):
     class NoLeader(Exception):
@@ -10,20 +9,21 @@ class Client(object):
         # cluster should be a list of [(host, port)] pairs
         for (host, port) in cluster:
             c = cls(host, port)
-            c.conn.request('GET', '/v2/stats/self')
-            if '"state":"StateLeader"' in c.conn.getresponse().read():
+            r = c.http.request('GET', c.base_url + '/v2/stats/self')
+            if '"state":"StateLeader"' in r.data:
                 return (host, port)
         raise cls.NoLeader
-    
+
 
     def __init__(self, host, port):
-        self.conn = httplib.HTTPConnection(host, port)
+        self.base_url = 'http://' + host + ':' + str(port)
+        self.http = urllib3.PoolManager()
 
     def get(self, key):
-        self.conn.request('GET', '/v2/keys/' + str(key) + '?quorum=true')
-        self.conn.getresponse().read()
+        r = self.http.request('GET', self.base_url + '/v2/keys/' + str(key) + '?quorum=true')
+        return r.data
 
     def put(self, key, value):
-        self.conn.request('PUT', '/v2/keys/' + str(key), urllib.urlencode({'value': str(value)}),
-                          {"Content-type": "application/x-www-form-urlencoded"})
-        self.conn.getresponse().read()
+        r = self.http.request('PUT', self.base_url + '/v2/keys/' + str(key),
+                              fields={'value': str(value)})
+        return r.data
