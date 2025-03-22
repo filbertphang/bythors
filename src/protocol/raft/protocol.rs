@@ -8,7 +8,7 @@ use crate::marshal::tuple::rust_tuple_to_lean;
 use crate::protocol::{Message, Packet, Protocol};
 
 use lean_sys::*;
-use log::info;
+use log::{debug, info};
 
 #[derive(Debug)]
 pub struct Raft {
@@ -48,15 +48,16 @@ impl Protocol for Raft {
         }
     }
 
+    // TODO: revisit if this is necessary
     unsafe fn start(&mut self) -> Vec<RaftPacket> {
         if self.is_first_leader {
-            info!("start: starting protocol");
+            debug!("start: starting protocol");
             let state_and_packets = lean_extern::raft_handle_timeout(self.node_state);
 
-            info!("start: deconstructing");
+            debug!("start: deconstructing");
             let (new_state, packets_to_send) = deconstruct_state_and_packets(state_and_packets);
-            info!("packets to send:");
-            info!("{packets_to_send:#?}");
+            debug!("packets to send:");
+            debug!("{packets_to_send:#?}");
 
             // update node state
             self.node_state = new_state;
@@ -75,7 +76,8 @@ impl Protocol for Raft {
         message: (String, String),
     ) -> Vec<RaftPacket> {
         // (own address is not needed, since it's already stored in the node state)
-        info!("starting round with {message:#?}");
+        info!("starting new round");
+        debug!("round {message:#?}");
 
         let round_lean = lean_usize_to_nat(self.round);
         let value_lean = rust_tuple_to_lean(message, rust_string_to_lean);
@@ -83,8 +85,8 @@ impl Protocol for Raft {
             lean_extern::raft_handle_input(self.node_state, round_lean, value_lean);
 
         let (new_state, packets_to_send) = deconstruct_state_and_packets(state_and_packets);
-        info!("packets to send:");
-        info!("{packets_to_send:#?}");
+        debug!("packets to send:");
+        debug!("{packets_to_send:#?}");
 
         // update node state
         self.node_state = new_state;
@@ -103,7 +105,8 @@ impl Protocol for Raft {
     /// the new state and packet vector.
     unsafe fn handle_packet(&mut self, packet: RaftPacket) -> Vec<RaftPacket> {
         // debug print
-        info!("received packet:\n{packet:#?}");
+        info!("received packet");
+        debug!("packet contents: {packet:#?}");
 
         let src_lean = rust_string_to_lean(packet.src);
         let msg_lean = packet.msg.to_lean();

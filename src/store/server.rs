@@ -31,7 +31,8 @@ struct Args {
 }
 
 fn parse_public_key(path: &str) -> PeerId {
-    let public_key_raw = std::fs::read(path).unwrap();
+    let public_key_raw =
+        std::fs::read(path).expect(&format!("should be able to read file at {path}"));
     let public_key: PublicKey = rsa::PublicKey::try_decode_x509(public_key_raw.as_slice())
         .unwrap()
         .into();
@@ -80,11 +81,15 @@ async fn start_node(
             // heartbeat not received: send timeout
             () = &mut heartbeat_timeout => {
                 network.timeout();
+
+                // reset the timer so we don't spam messages
+                heartbeat::reset(heartbeat_timeout.as_mut(), args.election_timeout);
             }
 
             // time to send a heartbeat
             () = &mut should_send_heartbeat => {
                 network.send_heartbeat();
+
                 // reset the timer for the next one
                 heartbeat::reset(should_send_heartbeat.as_mut(), args.heartbeat_interval);
             }
@@ -124,16 +129,17 @@ async fn start_client_handler(
     addr: SocketAddr,
     request_tx: broadcast::Sender<(command::Request, SocketAddr)>,
     mut response_rx: broadcast::Receiver<(command::Response, SocketAddr)>,
+    shutdown_rx: broadcast::Receiver<()>,
 ) {
-    loop {
-        // ensure tcp stream is readable
-        tcp_stream
-            .readable()
-            .await
-            .expect("tcp stream should be readable");
+    let mut shutdown = shutdown::Shutdown::new(shutdown_rx);
+    info!("({addr}): started");
 
+    loop {
         // drive event loop
         tokio::select! {
+            // shutdown signal received
+            () = shutdown.recv() => { return }
+
             // new response to forward to client
             Ok((res, res_addr)) = response_rx.recv() => {
                 // this message is intended for this client handler
@@ -150,9 +156,14 @@ async fn start_client_handler(
             }
 
             // new client request
-            Ok(msg_len) = tcp_stream.read_u32_le() => {
+            Ok(()) = tcp_stream.readable() => {
                 // read message length
-                let msg_len : usize = msg_len.try_into().expect("should be able to convert a u32 to a usize");
+                let msg_len : usize = tcp_stream
+                    .read_u32_le()
+                    .await
+                    .expect("should be able to read request len")
+                    .try_into()
+                    .expect("should be able to convert a u32 to a usize");
 
                 // read actual message into buf
                 let mut buf = vec![0u8; msg_len];
@@ -163,6 +174,7 @@ async fn start_client_handler(
 
                 // parse message into a Request
                 let msg_str = String::from_utf8(buf).expect("should be able to convert msg into string");
+                println!("({addr}): received {msg_str}");
                 let req = command::parse_request(msg_str).expect("message should be well-formed");
 
                 // send message to request channel
@@ -200,29 +212,17 @@ pub async fn main() {
 
     // create command channels
     let (request_tx, request_rx) = broadcast::channel(BCAST_CHANNEL_CAPACITY);
-    let (response_tx, response_rx) = broadcast::channel(BCAST_CHANNEL_CAPACITY);
+    let (response_tx, _) = broadcast::channel(BCAST_CHANNEL_CAPACITY);
 
-    // spawn logic thread
-    let mut tasks = tokio::task::JoinSet::new();
-    tasks.spawn_local(async move {
-        start_node(
-            args.clone(),
-            &all_nodes,
-            shutdown_rx,
-            request_rx,
-            response_tx,
-        )
-        .await
-    });
-
-    // driver thread (this thread)
-    tasks.spawn(async move {
+    // spawn driver thread
+    let response_tx_driver = response_tx.clone();
+    tokio::task::spawn(async move {
         // spawn libp2p network (for consensus)
         let mut stdin = io::BufReader::new(io::stdin()).lines();
 
         // set up tcp listener to handle client connections
         let host = "127.0.0.1";
-        let port = "8080";
+        let port = 8000 + args.node_number;
         let addr = format!("{host}:{port}");
         let tcp_listener = TcpListener::bind(addr)
             .await
@@ -246,15 +246,26 @@ pub async fn main() {
 
                 // handle new tcp connection
                 Ok((tcp_stream, addr)) = tcp_listener.accept() => {
-                    // todo
+                    println!("accepting new tcp connection at {addr}");
+                    let request_tx = request_tx.clone();
+                    let response_rx = response_tx_driver.subscribe();
+                    let shutdown_rx = shutdown_tx.subscribe();
+                    tokio::task::spawn(async move {
+                        start_client_handler(tcp_stream, addr, request_tx, response_rx, shutdown_rx).await
+                    });
                 }
 
             }
         }
     });
-}
 
-// let command = parse_command(line.clone());
-// match command {
-//     None => println!("invalid command: {line}"),
-// }
+    // run logic thread (in this thread)
+    start_node(
+        args.clone(),
+        &all_nodes,
+        shutdown_rx,
+        request_rx,
+        response_tx,
+    )
+    .await
+}

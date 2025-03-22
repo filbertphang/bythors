@@ -10,7 +10,7 @@ use libp2p::identity::Keypair;
 use libp2p::request_response::ResponseChannel;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{mdns, request_response, PeerId, Swarm};
-use log::info;
+use log::{debug, info};
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -107,7 +107,7 @@ where
         let event = self.swarm.select_next_some().await;
         match event {
             SwarmEvent::NewListenAddr { address, .. } => {
-                info!("Listening on {address:?}");
+                info!("listening on {address:?}");
                 NetworkPollResult::OtherEvent
             }
 
@@ -213,7 +213,8 @@ where
     }
 
     fn send_individual_packet(&mut self, packet: Packet<T::Message>) {
-        info!("sending packet {packet:#?}");
+        info!("sending packet");
+        debug!("packet contents: {packet:#?}");
         let src_id =
             PeerId::from_str(packet.src.as_str()).expect("expected well-formed source address");
         let dst_id = PeerId::from_str(packet.dst.as_str())
