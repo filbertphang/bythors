@@ -1,10 +1,10 @@
-import random
 import socket
 import re
-import uuid
+from uuid import uuid4
 from select import select
 from struct import pack, unpack
-import time
+
+# implementation taken from verdi-raft vard client
 
 def poll(sock, timeout):
     return sock in select([sock], [], [], timeout)[0]
@@ -26,55 +26,43 @@ class Client(object):
     def find_leader(cls, cluster):
         # cluster should be a list of [(host, port)] pairs
         for (host, port) in cluster:
+            c = cls(host, port)
             try:
-                print "probing node " + host + ":" + str(port)
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.settimeout(1.0)
-                sock.connect((host, port))
-                sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-                c = cls(host, port, sock)
                 c.get('a')
-            except socket.error as e:
-                print "socket.error", e
-                continue
-            except socket.timeout as e:
-                print "socket.timeout", e
-                continue
-            except LeaderChanged as e:
-                print "probed node is not leader"
-                # This happens if the server contacted is not the leader.
-                # Since leader detection works by trying servers one by one, this is expected.
+            except LeaderChanged:
                 continue
             else:
-                print "leader is " + host + ":" + str(port)
                 return (host, port)
-        print "No leader found. Leader-election may not have terminated yet. Try again in a few seconds."
         raise cls.NoLeader
 
     response_re = re.compile(r'Response\W+([0-9]+)\W+([/A-Za-z0-9]+|-)\W+([/A-Za-z0-9]+|-)\W+([/A-Za-z0-9]+|-)')
 
-    def __init__(self, host, port, sock=None, timeout=None, client_id=None, request_id=None):
-        if client_id is None:
-            client_id = random.randint(1, 2**31 - 1)
-
-        self.client_id = client_id
-
-        if not sock:
+    def __init__(self, host, port, sock=None):
+        self.client_id = uuid4().hex
+        self.request_id = 0
+        if sock is None:
             self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.sock.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
-
-            if timeout is None:
-                timeout = 10.0
-
-            self.sock.settimeout(timeout)
             self.sock.connect((host, port))
         else:
             self.sock = sock
+        self.send_client_id()
 
-        if request_id is None:
-            request_id = 0
+    def send_client_id(self):
+        n = self.sock.send(pack("<I", len(self.client_id)))
+        if n < 4:
+            raise SendError
+        else:
+            self.sock.send(self.client_id)
 
-        self.request_id = request_id
+    def reconnect(self, host, port, sock=None):
+        self.sock.shutdown(1)
+        self.sock.close()
+        if sock is None:
+            self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.sock.connect((host, port))
+        else:
+            self.sock = sock
+        self.send_client_id()
 
     def deserialize(self, data):
         if data == '-':
@@ -86,11 +74,14 @@ class Client(object):
             return '-'
         return str(arg)
 
-
     def send_command(self, cmd, arg1=None, arg2=None, arg3=None):
-        msg = str(self.client_id) + ' ' + str(self.request_id) + ' ' + cmd + ' ' + ' '.join(map(self.serialize, (arg1, arg2, arg3)))
-        self.sock.send(pack("<I", len(msg)) + msg)
-        self.request_id += 1
+        msg = str(self.request_id) + ' ' + cmd + ' ' + ' '.join(map(self.serialize, (arg1, arg2, arg3)))
+        n = self.sock.send(pack("<I", len(msg)))
+        if n < 4:
+            raise SendError
+        else:
+            self.sock.send(msg)
+            self.request_id += 1
 
     def parse_response(self, data):
         if data.startswith('NotLeader'):
@@ -143,53 +134,3 @@ class Client(object):
         if self.process_response()[3] is None:
             return True
         return False
-
-class FailoverTolerantClient(object):
-    def __init__(self, cluster, timeout=2.0, retries=10, no_leader_sleep=1.0):
-        self.cluster = cluster
-        self.timeout = timeout
-        self.retries = retries
-        self.no_leader_sleep = no_leader_sleep
-
-        self.client = None
-        self.client = self.get_client_at_leader()
-
-    def get_client_at_leader(self):
-        for i in range(self.retries):
-            try:
-                (host, port) = Client.find_leader(self.cluster)
-                if self.client is None:
-                    client_id = None
-                    request_id = None
-                else:
-                    client_id = self.client.client_id
-                    request_id = self.client.request_id
-
-                return Client(host, port, timeout=self.timeout, client_id=client_id, request_id=request_id)
-            except Client.NoLeader:
-                print "sleeping in hopes a leader gets elected"
-                time.sleep(self.no_leader_sleep)
-                continue
-        print "too many retries, giving up"
-        raise Client.NoLeader
-
-    def wrap_client_method(self, method, *args):
-        while True:
-            try:
-                return method(self.client, *args)
-            except (socket.error, socket.timeout, SendError, ReceiveError, LeaderChanged) as e:
-                print "Failover at %s due to %s" % (time.time(), e)
-                self.client = self.get_client_at_leader()
-                print "found new leader!"
-
-    def get(self, k):
-        return self.wrap_client_method(Client.get, k)
-
-    def put(self, k, v):
-        return self.wrap_client_method(Client.put, k, v)
-
-    def delete(self, k):
-        return self.wrap_client_method(Client.delete, k)
-
-    def compare_and_set(self, k, current, new):
-        return self.wrap_client_method(Client.compare_and_set, k, current, new)

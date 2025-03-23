@@ -4,6 +4,7 @@ import random
 import Queue
 import threading
 import multiprocessing
+import bythors
 import vard
 import etcd
 
@@ -30,13 +31,15 @@ def benchmark(client, requests, runtime, keys, put_percentage, thread_id, result
             key = str(random.randint(0, keys))
             if random.random() < put_prob:
                 start = time.time()
-                client.put('key' + key, str(i))
+                # client.put('key' + key, str(i))
+                client.put('key' + key + 'thread' + str(thread_id), str(i))
                 end = time.time()
                 puts.append(end-start)
                 reqs.append((thread_id, end - start_time, end-start))
             else:
                 start = time.time()
-                client.get('key' + key)
+                # client.get('key' + key)
+                client.get('key' + key + 'thread' + str(thread_id))
                 end = time.time()
                 gets.append(end-start)
                 reqs.append((thread_id, end - start_time, end-start))
@@ -63,7 +66,7 @@ def main():
     global DEBUG
     global start_time
     parser = argparse.ArgumentParser()
-    parser.add_argument('--service', default='vard', choices=['etcd', 'vard'])
+    parser.add_argument('--service', default='bythors', choices=['etcd', 'vard', 'bythors'])
     parser.add_argument('--cluster', type=cluster, required=True)
     parser.add_argument('--requests', type=int)
     parser.add_argument('--time', type=float)
@@ -92,9 +95,11 @@ def main():
         Q = multiprocessing.Queue
         T = multiprocessing.Process
 
-    Client = vard.Client
+    Client = bythors.Client
     if args.tolerate_failover:
         Client = vard.FailoverTolerantClient
+    if args.service == 'vard':
+        Client = vard.Client
     if args.service == 'etcd':
         Client = etcd.Client
 

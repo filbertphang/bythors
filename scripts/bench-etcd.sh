@@ -1,8 +1,5 @@
 #!/bin/sh
 
-# note to self: remember to `pyenv activate etcd` before running the script
-# 'etcd' is the name of a virtualenv i set up with python 2.7 with urllib3 installed
-
 echo "=== bench-etcd ==="
 echo "starting instances"
 

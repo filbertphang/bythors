@@ -19,7 +19,7 @@ sleep 20
 
 echo "starting benchmarks"
 
-python2 bench/bench.py --service vard --keys 50 --cluster "localhost:8001,localhost:8002,localhost:8003" --threads 8 --requests 100
+python2 bench/bench.py --service bythors --keys 50 --cluster "localhost:8001,localhost:8002,localhost:8003" --threads 8 --requests 100
 
 killall -9 bythors > /dev/null
 
