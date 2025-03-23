@@ -2,12 +2,12 @@ use std::net::SocketAddr;
 
 use crate::network::{Network, NetworkPollResult};
 use crate::protocol::raft::Raft;
-use crate::store::{command, heartbeat, shutdown};
+use crate::store::{command, heartbeat, shutdown, socket};
 
 use clap::Parser;
 use libp2p::identity::{rsa, Keypair, PeerId, PublicKey};
 use log::{debug, info};
-use tokio::io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncBufReadExt, AsyncReadExt};
 use tokio::net::TcpListener;
 use tokio::sync::broadcast;
 use tokio::{io, select};
@@ -162,13 +162,11 @@ async fn start_client_handler(
                 if res_addr == addr {
                     info!("({addr}): responding with {res:?}");
                     // construct response message
-                    let res_bytes = command::pack_response(res);
-                    let res_len: u32 = res_bytes.len().try_into().expect("response message length should fit into a u32");
+                    let res = command::pack_response(res);
 
                     // write response to tcp stream
                     tcp_stream.writable().await.expect("tcp stream should be writable");
-                    tcp_stream.write_u32_le(res_len).await.expect("should be able to write msg length to tcp stream");
-                    tcp_stream.write(&res_bytes).await.expect("should be able to write message to tcp stream");
+                    socket::write_str_to_socket(&mut tcp_stream, res).await;
 
                     info!("({addr}): done responding");
                 }
@@ -181,15 +179,7 @@ async fn start_client_handler(
                     .try_into()
                     .expect("should be able to convert a u32 to a usize");
 
-                // read actual message into buf
-                let mut buf = vec![0u8; msg_len];
-                tcp_stream
-                    .read_exact(&mut buf)
-                    .await
-                    .expect("should be able to read msg from tcp stream");
-
-                // parse message into a Request
-                let msg_str = String::from_utf8(buf).expect("should be able to convert msg into string");
+                let msg_str = socket::read_bytes_from_socket_to_str(&mut tcp_stream, msg_len).await;
                 info!("({addr}): received {msg_str}");
                 let req = command::parse_request(msg_str).expect("message should be well-formed");
 
@@ -211,7 +201,7 @@ async fn start_client_handler(
 ///   to reach consensus
 /// - (client handler threads) handle communication with clients, i.e. it recieves requests and sends
 ///   responses from/to clients
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread", worker_threads = 8)]
 pub async fn main() {
     env_logger::init();
 
