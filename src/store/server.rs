@@ -1,4 +1,6 @@
+use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::{Arc, Mutex};
 
 use crate::network::{Network, NetworkPollResult};
 use crate::protocol::raft::Raft;
@@ -45,7 +47,7 @@ async fn start_node(
     all_nodes: &Vec<PeerId>,
     shutdown_rx: broadcast::Receiver<()>,
     mut request_rx: broadcast::Receiver<(command::Request, SocketAddr)>,
-    response_tx: broadcast::Sender<(command::Response, SocketAddr)>,
+    write_streams_arc: Arc<Mutex<HashMap<SocketAddr, tokio::net::tcp::OwnedWriteHalf>>>,
 ) {
     assert!(!all_nodes.is_empty());
 
@@ -113,9 +115,16 @@ async fn start_node(
                     }
                 };
 
-                info!("(logic): responding with {res:?}");
-                let n = response_tx.send((res, addr)).expect("should be able to send response");
-                debug!("(logic): response sent to {n} receivers");
+                info!("(logic): responding to {addr} with {res:?}");
+                let mut write_streams = write_streams_arc
+                    .lock()
+                    .expect("should be able to lock mutex");
+                let write_stream = write_streams
+                    .get_mut(&addr)
+                    .expect("should be able to find write stream for this address");
+                let res_str = command::pack_response(res);
+                socket::write_str_to_socket(write_stream, res_str).await;
+                std::mem::drop(write_streams);
             }
 
             // poll the network driver, to process new connections and events.
@@ -133,10 +142,9 @@ async fn start_node(
 }
 
 async fn start_client_handler(
-    mut tcp_stream: tokio::net::TcpStream,
+    mut tcp_stream: tokio::net::tcp::OwnedReadHalf,
     addr: SocketAddr,
     request_tx: broadcast::Sender<(command::Request, SocketAddr)>,
-    mut response_rx: broadcast::Receiver<(command::Response, SocketAddr)>,
     shutdown_rx: broadcast::Receiver<()>,
 ) {
     // TODO: properly shut down when the tcp connection is closed
@@ -155,23 +163,6 @@ async fn start_client_handler(
             // shutdown signal received
             () = shutdown.recv() => { return }
 
-            // new response to forward to client
-            Ok((res, res_addr)) = response_rx.recv() => {
-                debug!("({addr}): received response {res:?} for {res_addr}");
-                // this message is intended for this client handler
-                if res_addr == addr {
-                    info!("({addr}): responding with {res:?}");
-                    // construct response message
-                    let res = command::pack_response(res);
-
-                    // write response to tcp stream
-                    tcp_stream.writable().await.expect("tcp stream should be writable");
-                    socket::write_str_to_socket(&mut tcp_stream, res).await;
-
-                    info!("({addr}): done responding");
-                }
-            }
-
             // new client request
             Ok(msg_len) = tcp_stream.read_u32_le() => {
                 // read message length
@@ -183,7 +174,7 @@ async fn start_client_handler(
                 info!("({addr}): received {msg_str}");
                 let req = command::parse_request(msg_str).expect("message should be well-formed");
 
-                // send message to request channel
+                // forward message to request channel
                 request_tx
                     .send((req, addr))
                     .expect("should be able to forward request");
@@ -220,10 +211,11 @@ pub async fn main() {
 
     // create command channels
     let (request_tx, request_rx) = broadcast::channel(BCAST_CHANNEL_CAPACITY);
-    let (response_tx, _) = broadcast::channel(BCAST_CHANNEL_CAPACITY);
+    let write_streams_arc: Arc<Mutex<HashMap<SocketAddr, tokio::net::tcp::OwnedWriteHalf>>> =
+        Arc::new(Mutex::new(HashMap::new()));
 
     // spawn driver thread
-    let response_tx_driver = response_tx.clone();
+    let write_streams_driver = write_streams_arc.clone();
     tokio::task::spawn(async move {
         // TODO: see if stdin handling is still necessary
         let mut stdin = io::BufReader::new(io::stdin()).lines();
@@ -255,11 +247,21 @@ pub async fn main() {
                 // handle new tcp connection
                 Ok((tcp_stream, addr)) = tcp_listener.accept() => {
                     println!("accepting new tcp connection at {addr}");
+
+                    // add the write stream to the connections table
+                    let (read_stream, write_stream) = tcp_stream.into_split();
+                    let mut write_streams = write_streams_driver
+                        .lock()
+                        .expect("should be able to lock mutex");
+                    write_streams.insert(addr, write_stream);
+                    std::mem::drop(write_streams);
+
+                    // set up other channels
                     let request_tx = request_tx.clone();
-                    let response_rx = response_tx_driver.subscribe();
                     let shutdown_rx = shutdown_tx.subscribe();
+
                     tokio::task::spawn(async move {
-                        start_client_handler(tcp_stream, addr, request_tx, response_rx, shutdown_rx).await
+                        start_client_handler(read_stream, addr, request_tx, shutdown_rx).await
                     });
                 }
 
@@ -273,7 +275,7 @@ pub async fn main() {
         &all_nodes,
         shutdown_rx,
         request_rx,
-        response_tx,
+        write_streams_arc,
     )
     .await
 }
