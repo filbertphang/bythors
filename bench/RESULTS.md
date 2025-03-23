@@ -2,23 +2,17 @@
 
 all tests are done with: (on my device)
 
-- 8 threads
+- 8 threads for sending data
 - 100 requests (per thread)
 - 50 keys
 
 ## bythors
 
-(8 threads, broken pipes)
-Total time: 10.103248
-Throughput: 1.484671 reqs/s
-7.000000 gets, avg = 0.025840
-8.000000 puts, avg = 0.024830
-
-(1 thread, no broken pipes)
-Total time: 5.004795
-Throughput: 19.980838 reqs/s
-47.000000 gets, avg = 0.049317
-53.000000 puts, avg = 0.050615
+(8 worker threads per instance. not sure if this is cheating, haven't configured the others yet)
+Total time: 5.086434
+Throughput: 157.281116 reqs/s
+405.000000 gets, avg = 0.050276
+395.000000 puts, avg = 0.050512
 
 ## etcd
 

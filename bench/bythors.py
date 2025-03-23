@@ -104,18 +104,15 @@ class Client(object):
             raise e
 
     def process_response(self, extra=''):
-        print (str(self.client_id) + ' checking for response for ' + extra)
         len_bytes = self.sock.recv(4)
         if len_bytes == '':
             raise ReceiveError
         else:
             len_msg = unpack("<I", len_bytes)[0]
-            print (str(self.client_id) + ' receiving ' + str(len_msg) + 'bytes')
             data = self.sock.recv(len_msg)
             if data == '':
                 raise ReceiveError
             else:
-                print (str(self.client_id) + ' received msg: ' + data)
                 return self.parse_response(data)
 
     def get(self, k):

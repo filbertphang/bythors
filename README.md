@@ -31,3 +31,8 @@ still somehow extremely WIP
   - OutputValue is an enum over GETusccess/GETfailed/PUTsuccess/PUTfailed or something similar
   - state machine is the actual hash map that is maintained on each lean side
   - checkoutput does not have to check consensus, we just have to return the output of the command i guess?
+
+## areas that can be optimized
+
+- mutex lock when processing every request (not necessary?)
+- all the marshalling overhead by doing O(n) list/array copies
