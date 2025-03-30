@@ -8,11 +8,10 @@ all tests are done with: (on my device)
 
 ## bythors
 
-(8 worker threads per instance. not sure if this is cheating, haven't configured the others yet)
-Total time: 5.086434
-Throughput: 157.281116 reqs/s
-405.000000 gets, avg = 0.050276
-395.000000 puts, avg = 0.050512
+Total time: 5.276967
+Throughput: 151.602235 reqs/s
+393.000000 gets, avg = 0.051792
+407.000000 puts, avg = 0.052195
 
 ## etcd
 
