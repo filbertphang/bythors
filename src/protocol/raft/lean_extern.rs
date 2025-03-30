@@ -68,4 +68,5 @@ extern "C" {
     pub fn raft_convert_entry_list_to_arr(entries: lean_obj_arg) -> lean_obj_res;
 
     pub fn raft_is_leader(state: lean_obj_arg) -> u8;
+    pub fn raft_get_persistent_state(state: lean_obj_arg) -> lean_obj_res;
 }

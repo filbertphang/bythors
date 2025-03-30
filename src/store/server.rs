@@ -1,5 +1,7 @@
 use std::collections::HashMap;
+use std::fs;
 use std::net::SocketAddr;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use crate::network::{Network, NetworkPollResult};
@@ -27,9 +29,16 @@ struct Args {
     #[arg(default_value_t = 2500)]
     heartbeat_interval: u64,
 
-    // intended to be run from the crate base directory
+    /// dir where keypairs are stored
+    // (keypairs are only used to generate identities for each node)
     #[arg(default_value_t = String::from("keys"))]
-    base_dir: String,
+    keys_dir: String,
+
+    /// dir to store server state
+    data_dir: Option<String>,
+
+    /// clear and overwrite existing server state, instead of resuming
+    clear_data: bool,
 }
 
 fn parse_public_key(path: &str) -> PeerId {
@@ -54,13 +63,31 @@ async fn start_node(
     // === initialization ===
 
     // parse identity keypair for current node
-    let private_key_path = format!("{}/private{}.pk8", args.base_dir, args.node_number);
+    let private_key_path = format!("{}/private{}.pk8", args.keys_dir, args.node_number);
     let mut identity_raw = std::fs::read(private_key_path).unwrap();
     let identity = Keypair::rsa_from_pkcs8(&mut identity_raw).unwrap();
 
-    // set up  network
+    // our state consists of one file:
+    // - `node_state.bin`: persistent state for this node
+    // if we are clearing state, remove these two files first.
+    let data_dir = args
+        .data_dir
+        .as_ref()
+        .expect("`args.data_dir` should be `Some`");
+    let _ = fs::create_dir_all(&data_dir);
+
+    let node_state_path: PathBuf = [&data_dir, "node_state.bin"].iter().collect();
+    if args.clear_data {
+        // ignore errors
+        let _ = fs::remove_file(&node_state_path);
+    }
+
+    // set up network
     let mut network: Network<Raft> =
-        Network::initialize(identity, all_nodes, &all_nodes[0], true).unwrap();
+        Network::initialize(identity, all_nodes, &all_nodes[0], true, node_state_path).unwrap();
+
+    // load state, if present
+    // TODO
 
     // Future that indicates when a heartbeat has not been received for some time
     let heartbeat_timeout = heartbeat::new_random(args.election_timeout);
@@ -116,6 +143,7 @@ async fn start_node(
                 };
 
                 info!("(logic): responding to {addr} with {res:?}");
+                // send response over the network
                 let mut write_streams = write_streams_arc
                     .lock()
                     .expect("should be able to lock mutex");
@@ -197,14 +225,18 @@ pub async fn main() {
     env_logger::init();
 
     // parse command-line args
-    let args = Args::parse();
+    let mut args = Args::parse();
 
-    // use key 1 as master node
-    // use keys 2 - 4 as replicas
     let all_nodes: Vec<PeerId> = (1..=args.total_nodes)
-        .map(|i| format!("{}/public{}.der", args.base_dir, i))
+        .map(|i| format!("{}/public{}.der", args.keys_dir, i))
         .map(|pk_path| parse_public_key(&pk_path))
         .collect();
+
+    // initialize default data directory, if not provided
+    // after this point, `args.data_dir` is always `Some`.
+    let _ = args
+        .data_dir
+        .get_or_insert(format!("data/node_{}", args.node_number));
 
     // create shutdown channel
     let (shutdown_tx, shutdown_rx) = broadcast::channel(BCAST_CHANNEL_CAPACITY);

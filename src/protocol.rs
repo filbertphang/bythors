@@ -12,8 +12,10 @@ pub mod raft {
     mod entry;
     mod lean_extern;
     mod message;
+    mod persistent_state;
     mod protocol;
 
     pub use message::RaftMessage;
+    pub use persistent_state::RaftPersistentState;
     pub use protocol::Raft;
 }

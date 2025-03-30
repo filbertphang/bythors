@@ -1,4 +1,4 @@
-use super::Packet;
+use super::{raft::RaftPersistentState, Packet};
 
 use lean_sys::*;
 
@@ -24,4 +24,5 @@ pub trait Protocol {
     unsafe fn handle_timeout(&mut self) -> Vec<Packet<Self::Message>>;
     unsafe fn send_heartbeat(&mut self) -> Vec<Packet<Self::Message>>;
     unsafe fn is_leader(&mut self) -> bool;
+    unsafe fn get_persistent_state(&self) -> RaftPersistentState;
 }

@@ -155,3 +155,8 @@ def raft_convert_entry_list_to_arr
 @[export raft_is_leader]
 def raft_is_leader (state: ConcreteRaftData) : Bool :=
   state.type == ServerType.Leader
+
+@[export raft_get_persistent_state]
+def raft_get_persistent_state (state: ConcreteRaftData)
+  : (Term × Option ConcreteAddress × Array ConcreteRaftEntry) :=
+  (state.currentTerm, state.votedFor, state.log.toArray)

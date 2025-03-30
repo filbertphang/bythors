@@ -1,5 +1,6 @@
 use super::lean_extern;
 use super::message::RaftMessage;
+use super::persistent_state::RaftPersistentState;
 
 use crate::marshal::array::{index_lean_array, rust_vec_to_lean_array};
 use crate::marshal::core::lean_option_to_rust;
@@ -154,6 +155,14 @@ impl Protocol for Raft {
         let res = lean_extern::raft_is_leader(self.node_state);
         // lean treats bools as u8, need to 'cast' to a proper boolean
         res == 1
+    }
+
+    unsafe fn get_persistent_state(&self) -> RaftPersistentState {
+        lean_inc(self.node_state);
+        let persistent_state_lean = lean_extern::raft_get_persistent_state(self.node_state);
+        let persistent_state = RaftPersistentState::from_lean(persistent_state_lean, true);
+
+        persistent_state
     }
 }
 

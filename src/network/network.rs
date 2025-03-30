@@ -11,6 +11,7 @@ use libp2p::request_response::ResponseChannel;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{mdns, request_response, PeerId, Swarm};
 use log::{debug, info};
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
 
@@ -27,6 +28,7 @@ where
     swarm: Swarm<ProtocolBehaviour<T::Message>>,
     protocol: T,
     all_peers: Vec<String>,
+    node_state_path: PathBuf,
 }
 
 impl<T> Network<T>
@@ -39,6 +41,7 @@ where
         all_peer_ids: &Vec<PeerId>,
         leader_peer_id: &PeerId,
         init_lean: bool,
+        node_state_path: PathBuf,
     ) -> Result<Self, Box<dyn Error>> {
         // for diagnostics
         // tracing_subscriber::fmt()
@@ -85,6 +88,7 @@ where
             swarm,
             protocol,
             all_peers,
+            node_state_path,
         };
         Ok(network)
     }
@@ -195,6 +199,10 @@ where
             .expect("should be able to ack a request");
 
         let packets_to_send = unsafe { self.protocol.handle_packet(packet) };
+
+        // persist current state to disk before responding
+        self.persist_node_state();
+
         self.transmit(packets_to_send);
     }
 
@@ -255,5 +263,10 @@ where
 
     pub fn is_leader(&mut self) -> bool {
         unsafe { self.protocol.is_leader() }
+    }
+
+    pub fn persist_node_state(&self) {
+        let persistent_state = unsafe { self.protocol.get_persistent_state() };
+        persistent_state.to_disk(&self.node_state_path);
     }
 }
