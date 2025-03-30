@@ -15,7 +15,7 @@ start-bythors 3
 
 # sleep so that initial election can resolve
 echo "waiting for election"
-sleep 20
+sleep 3
 
 echo "starting benchmarks"
 

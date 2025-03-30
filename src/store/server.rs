@@ -23,10 +23,10 @@ struct Args {
     node_number: usize,
     total_nodes: usize,
 
-    #[arg(default_value_t = 10000)]
+    #[arg(default_value_t = 1000)]
     election_timeout: u64,
 
-    #[arg(default_value_t = 2500)]
+    #[arg(default_value_t = 250)]
     heartbeat_interval: u64,
 
     /// dir where keypairs are stored
