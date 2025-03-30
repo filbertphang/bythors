@@ -20,24 +20,28 @@ const BCAST_CHANNEL_CAPACITY: usize = 1024;
 
 #[derive(Parser, Clone)]
 struct Args {
+    #[arg(long)]
     node_number: usize,
+    #[arg(long)]
     total_nodes: usize,
 
-    #[arg(default_value_t = 1000)]
+    #[arg(long, default_value_t = 1000)]
     election_timeout: u64,
 
-    #[arg(default_value_t = 250)]
+    #[arg(long, default_value_t = 250)]
     heartbeat_interval: u64,
 
     /// dir where keypairs are stored
     // (keypairs are only used to generate identities for each node)
-    #[arg(default_value_t = String::from("keys"))]
+    #[arg(long, default_value_t = String::from("keys"))]
     keys_dir: String,
 
     /// dir to store server state
+    #[arg(long)]
     data_dir: Option<String>,
 
     /// clear and overwrite existing server state, instead of resuming
+    #[arg(long)]
     clear_data: bool,
 }
 

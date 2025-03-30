@@ -2,7 +2,7 @@
 
 function start-bythors {
   NODE=${1}
-  target/release/bythors ${NODE} 3 &
+  target/release/bythors --node-number ${NODE} --total-nodes 3 --clear-data &
   sleep 1
 }
 
@@ -15,7 +15,7 @@ start-bythors 3
 
 # sleep so that initial election can resolve
 echo "waiting for election"
-sleep 3
+sleep 5
 
 echo "starting benchmarks"
 
