@@ -1,12 +1,12 @@
 use super::entry::RaftEntry;
 
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::Path;
 
-use crate::marshal::array::lean_array_to_rust_vec;
-use crate::marshal::core::{lean_dec_cond, lean_option_to_rust};
-use crate::marshal::string::lean_string_to_rust;
+use crate::marshal::array::{lean_array_to_rust_vec, rust_vec_to_lean_array};
+use crate::marshal::core::{lean_dec_cond, lean_option_to_rust, rust_option_to_lean};
+use crate::marshal::string::{lean_string_to_rust, rust_string_to_lean};
 
 use lean_sys::*;
 
@@ -45,6 +45,14 @@ impl RaftPersistentState {
         }
     }
 
+    pub unsafe fn to_lean_parts(self) -> (*mut lean_object, *mut lean_object, *mut lean_object) {
+        let current_term_lean = lean_usize_to_nat(self.current_term);
+        let voted_for_lean = rust_option_to_lean(self.voted_for, rust_string_to_lean);
+        let log_lean = rust_vec_to_lean_array(self.log, RaftEntry::to_lean);
+
+        (current_term_lean, voted_for_lean, log_lean)
+    }
+
     pub fn to_disk(&self, write_path: &Path) {
         let bytes =
             bitcode::serialize(self).expect("should be able to serialize RaftPersistentState");
@@ -56,5 +64,18 @@ impl RaftPersistentState {
         file_to_write
             .flush()
             .expect("should be able to flush written data to file");
+    }
+
+    pub fn from_disk(read_path: &Path) -> Self {
+        let mut file_to_read =
+            File::open(read_path).expect("should be able to open file in read-only mode");
+        let mut bytes = vec![];
+        file_to_read
+            .read_to_end(&mut bytes)
+            .expect("should be able to read persisted state on disk");
+        let persistent_state: Self = bitcode::deserialize(&bytes)
+            .expect("should be able to deserialize to RaftPersistentState");
+
+        persistent_state
     }
 }

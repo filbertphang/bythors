@@ -86,9 +86,6 @@ async fn start_node(
     let mut network: Network<Raft> =
         Network::initialize(identity, all_nodes, &all_nodes[0], true, node_state_path).unwrap();
 
-    // load state, if present
-    // TODO
-
     // Future that indicates when a heartbeat has not been received for some time
     let heartbeat_timeout = heartbeat::new_random(args.election_timeout);
     tokio::pin!(heartbeat_timeout);

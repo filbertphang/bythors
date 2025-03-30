@@ -25,4 +25,5 @@ pub trait Protocol {
     unsafe fn send_heartbeat(&mut self) -> Vec<Packet<Self::Message>>;
     unsafe fn is_leader(&mut self) -> bool;
     unsafe fn get_persistent_state(&self) -> RaftPersistentState;
+    unsafe fn load_persistent_state(&mut self, persistent_state: RaftPersistentState);
 }

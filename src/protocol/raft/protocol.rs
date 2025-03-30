@@ -164,6 +164,13 @@ impl Protocol for Raft {
 
         persistent_state
     }
+
+    unsafe fn load_persistent_state(&mut self, persistent_state: RaftPersistentState) {
+        let (current_term, voted_for, log) = persistent_state.to_lean_parts();
+        let new_state =
+            lean_extern::raft_load_persistent_state(self.node_state, current_term, voted_for, log);
+        self.node_state = new_state;
+    }
 }
 
 unsafe fn deconstruct_state_and_packets(

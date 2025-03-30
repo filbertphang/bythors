@@ -39,3 +39,17 @@ pub unsafe fn lean_option_to_rust<T>(
 
     res
 }
+
+pub unsafe fn rust_option_to_lean<T>(
+    opt: Option<T>,
+    convert: unsafe fn(T) -> *mut lean_object,
+) -> *mut lean_object {
+    match opt {
+        None => lean_box(0),
+        Some(t) => {
+            let opt_lean = lean_alloc_ctor(0, 1, 0);
+            lean_ctor_set(opt_lean, 0, convert(t));
+            opt_lean
+        }
+    }
+}

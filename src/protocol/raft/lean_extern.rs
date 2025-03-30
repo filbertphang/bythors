@@ -69,4 +69,10 @@ extern "C" {
 
     pub fn raft_is_leader(state: lean_obj_arg) -> u8;
     pub fn raft_get_persistent_state(state: lean_obj_arg) -> lean_obj_res;
+    pub fn raft_load_persistent_state(
+        state: lean_obj_arg,
+        current_term: lean_obj_arg,
+        voted_for: lean_obj_arg,
+        log: lean_obj_arg,
+    ) -> lean_obj_res;
 }

@@ -160,3 +160,17 @@ def raft_is_leader (state: ConcreteRaftData) : Bool :=
 def raft_get_persistent_state (state: ConcreteRaftData)
   : (Term × Option ConcreteAddress × Array ConcreteRaftEntry) :=
   (state.currentTerm, state.votedFor, state.log.toArray)
+
+@[export raft_load_persistent_state]
+def raft_load_persistent_state
+  (state: ConcreteRaftData)
+  (currentTerm: Term)
+  (votedFor: Option ConcreteAddress)
+  (log: Array ConcreteRaftEntry)
+  : ConcreteRaftData :=
+  {
+    state with
+    currentTerm
+    votedFor
+    log := log.toList
+  }

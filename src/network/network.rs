@@ -2,6 +2,7 @@ use super::behaviour::{ProtocolBehaviour, ProtocolBehaviourEvent};
 use super::request_response::{ProtocolRequest, ProtocolResponse};
 
 use crate::marshal::initialization::initialize_lean_environment;
+use crate::protocol::raft::RaftPersistentState;
 use crate::protocol::{Message, Packet, Protocol};
 
 use core::error::Error;
@@ -11,6 +12,7 @@ use libp2p::request_response::ResponseChannel;
 use libp2p::swarm::SwarmEvent;
 use libp2p::{mdns, request_response, PeerId, Swarm};
 use log::{debug, info};
+use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
@@ -84,12 +86,16 @@ where
         swarm.listen_on("/ip4/0.0.0.0/tcp/0".parse()?)?;
 
         // construct network
-        let network = Self {
+        let mut network = Self {
             swarm,
             protocol,
             all_peers,
             node_state_path,
         };
+
+        // load state, if present
+        network.load_node_state();
+
         Ok(network)
     }
 
@@ -268,5 +274,14 @@ where
     pub fn persist_node_state(&self) {
         let persistent_state = unsafe { self.protocol.get_persistent_state() };
         persistent_state.to_disk(&self.node_state_path);
+    }
+
+    pub fn load_node_state(&mut self) {
+        if let Ok(true) = fs::exists(&self.node_state_path) {
+            unsafe {
+                let persistent_state = RaftPersistentState::from_disk(&self.node_state_path);
+                self.protocol.load_persistent_state(persistent_state);
+            }
+        }
     }
 }
