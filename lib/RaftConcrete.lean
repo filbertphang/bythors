@@ -168,9 +168,16 @@ def raft_load_persistent_state
   (votedFor: Option ConcreteAddress)
   (log: Array ConcreteRaftEntry)
   : ConcreteRaftData :=
+  let log := log.toList
+  let stateMachine :=
+    List.foldr
+    (λ e sm => run_state_machine e.eInput sm |> Prod.snd)
+    state.stateMachine
+    log
   {
     state with
     currentTerm
     votedFor
-    log := log.toList
+    log
+    stateMachine
   }
