@@ -6,6 +6,10 @@ from struct import pack, unpack
 import time
 
 # implementation taken from pldi18 vard client
+# only change is addition of this comment
+
+# bythors was implemented to work with this interface, so we can use
+# Ivy client to interact with a bythors k-v store too
 
 def poll(sock, timeout):
     return sock in select([sock], [], [], timeout)[0]
@@ -87,7 +91,6 @@ class Client(object):
             return '-'
         return str(arg)
 
-
     def send_command(self, cmd, arg1=None, arg2=None, arg3=None):
         msg = str(self.client_id) + ' ' + str(self.request_id) + ' ' + cmd + ' ' + ' '.join(map(self.serialize, (arg1, arg2, arg3)))
         self.sock.send(pack("<I", len(msg)) + msg)
@@ -103,7 +106,7 @@ class Client(object):
             print "Parse error, data=%s" % data
             raise e
 
-    def process_response(self, extra=''):
+    def process_response(self):
         len_bytes = self.sock.recv(4)
         if len_bytes == '':
             raise ReceiveError
@@ -117,7 +120,7 @@ class Client(object):
 
     def get(self, k):
         self.send_command('GET', k)
-        return self.process_response('get ' + k)[2]
+        return self.process_response()[2]
 
     def get_no_wait(self, k):
         self.send_command('GET', k)
@@ -127,7 +130,7 @@ class Client(object):
 
     def put(self, k, v):
         self.send_command('PUT', k, v)
-        return self.process_response('put ' + k + ' ' + v)[2]
+        return self.process_response()[2]
 
     def delete(self, k):
         self.send_command('DEL', k)

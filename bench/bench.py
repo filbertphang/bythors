@@ -4,7 +4,7 @@ import random
 import Queue
 import threading
 import multiprocessing
-import bythors
+import ivy
 import vard
 import etcd
 
@@ -66,7 +66,7 @@ def main():
     global DEBUG
     global start_time
     parser = argparse.ArgumentParser()
-    parser.add_argument('--service', default='bythors', choices=['etcd', 'vard', 'bythors'])
+    parser.add_argument('--service', default='ivy', choices=['etcd', 'vard', 'ivy'])
     parser.add_argument('--cluster', type=cluster, required=True)
     parser.add_argument('--requests', type=int)
     parser.add_argument('--time', type=float)
@@ -95,7 +95,7 @@ def main():
         Q = multiprocessing.Queue
         T = multiprocessing.Process
 
-    Client = bythors.Client
+    Client = ivy.Client
     if args.tolerate_failover:
         Client = vard.FailoverTolerantClient
     if args.service == 'vard':
