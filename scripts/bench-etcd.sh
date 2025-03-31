@@ -8,7 +8,7 @@ bench/bin/etcd --name=one \
      --advertise-client-urls http://localhost:8001 \
      --initial-advertise-peer-urls http://localhost:9001 \
      --listen-peer-urls http://localhost:9001 \
-     --data-dir=/tmp/etcd1 \
+     --data-dir=data/etcd/1 \
      --enable-v2 \
      --initial-cluster "one=http://localhost:9001,two=http://localhost:9002,three=http://localhost:9003" \
       > /dev/null 2>&1 &
@@ -19,7 +19,7 @@ bench/bin/etcd --name=two \
      --advertise-client-urls http://localhost:8002 \
      --initial-advertise-peer-urls http://localhost:9002 \
      --listen-peer-urls http://localhost:9002 \
-     --data-dir=/tmp/etcd2 \
+     --data-dir=data/etcd/2 \
      --enable-v2 \
      --initial-cluster "one=http://localhost:9001,two=http://localhost:9002,three=http://localhost:9003" \
       > /dev/null 2>&1 &
@@ -30,7 +30,7 @@ bench/bin/etcd --name=three \
      --advertise-client-urls http://localhost:8003 \
      --initial-advertise-peer-urls http://localhost:9003 \
      --listen-peer-urls http://localhost:9003 \
-     --data-dir=/tmp/etcd3 \
+     --data-dir=data/etcd/3 \
      --enable-v2 \
      --initial-cluster "one=http://localhost:9001,two=http://localhost:9002,three=http://localhost:9003" \
      > /dev/null 2>&1 &

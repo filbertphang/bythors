@@ -1,11 +1,6 @@
 #!/usr/bin/env bash
 
-# N=2
-# PORT=800${N}
-# bench/bin/vard.native -dbpath "/tmp/vard-$PORT" \
-#               -port "$PORT" \
-#               -node 0,localhost:9000 -node 1,localhost:9001 -node 2,localhost:9002 \
-#               -me "${N}"
+data_dir="data/vard"
 
 function start-vard {
   PORT=800${1}
@@ -13,12 +8,14 @@ function start-vard {
                 -port "$PORT" \
                 -node 0,localhost:9000 -node 1,localhost:9001 -node 2,localhost:9002 \
                 -me "$1" \
-                > "/tmp/vard-${PORT}.log" &
+                > "${data_dir}/vard-${PORT}.log" &
   sleep 1
 }
 
 echo "=== bench-vard ==="
 echo "starting instances"
+
+mkdir -p ${data_dir}
 
 start-vard 0
 start-vard 1

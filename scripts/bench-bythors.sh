@@ -2,7 +2,8 @@
 
 function start-bythors {
   NODE=${1}
-  target/release/bythors --node-number ${NODE} --total-nodes 3 --clear-data &
+  target/release/bythors --node-number ${NODE} --total-nodes 3 \
+                         --clear-data --data-dir "data/bythors/${NODE}" &
   sleep 1
 }
 
