@@ -26,3 +26,18 @@ Total time: 14.442923
 Throughput: 55.390450 reqs/s
 427.000000 gets, avg = 0.144262
 373.000000 puts, avg = 0.143292
+
+## ivy (pldi18)
+
+note that the ivy k-v store does not persist anything to disk:
+
+> We note that etcd now displays worse performance than our Raft-based key-value store. We believe that this is primarily because etcd is writing to a ramdisk, while our key-value store doesn't have a persistence mechanism.
+
+_(from pldi18 artifact, README.md, section "Differences with the submission\Etcd")_
+
+so this is naturally going to be **significantly** faster, because it doesn't incur any storage access overhead.
+
+Total time: 0.108757
+Throughput: 7355.847071 reqs/s
+404.000000 gets, avg = 0.000916
+396.000000 puts, avg = 0.000939
