@@ -55,7 +55,7 @@ fn parse_public_key(path: &str) -> PeerId {
     peer_id
 }
 
-async fn start_node(
+async fn start_logic(
     args: Args,
     all_nodes: &Vec<PeerId>,
     shutdown_rx: broadcast::Receiver<()>,
@@ -156,7 +156,7 @@ async fn start_node(
                 std::mem::drop(write_streams);
             }
 
-            // poll the network driver, to process new connections and events.
+            // poll the network, to process new connections and events.
             res = network.poll() => {
                 match res {
                     NetworkPollResult::ProtocolEvent => {
@@ -213,13 +213,13 @@ async fn start_client_handler(
 }
 
 /// a simple distributed key-value store (for strings), using the raft protocol
-/// each instance runs a single node/replica, running across several threads:
-/// - (server thread)  handles cli-input from the user and accepts incoming tcp connections.
+/// each instance runs a single node/replica, running across several tasks:
+/// - (server task)  handles cli-input from the user and accepts incoming tcp connections.
 ///                    for an instance with node number n, the server runs on port (8000 + n).
 ///                    node number is 1-indexed.
-/// - (consensus thread) handles communication within the network, i.e., it talks to other nodes
+/// - (consensus task) handles communication within the network, i.e., it talks to other nodes
 ///   to reach consensus
-/// - (client handler threads) handle communication with clients, i.e. it recieves requests and sends
+/// - (client handler tasks) handle communication with clients, i.e. it recieves requests and sends
 ///   responses from/to clients
 #[tokio::main(flavor = "multi_thread", worker_threads = 8)]
 pub async fn main() {
@@ -247,8 +247,8 @@ pub async fn main() {
     let write_streams_arc: Arc<Mutex<HashMap<SocketAddr, tokio::net::tcp::OwnedWriteHalf>>> =
         Arc::new(Mutex::new(HashMap::new()));
 
-    // spawn driver thread
-    let write_streams_driver = write_streams_arc.clone();
+    // spawn network task
+    let write_streams_network = write_streams_arc.clone();
     tokio::task::spawn(async move {
         // TODO: see if stdin handling is still necessary
         let mut stdin = io::BufReader::new(io::stdin()).lines();
@@ -261,7 +261,7 @@ pub async fn main() {
             .await
             .expect("should be able to create tcp listener");
 
-        info!("driver thread ready!");
+        info!("network task ready!");
 
         loop {
             select! {
@@ -283,7 +283,7 @@ pub async fn main() {
 
                     // add the write stream to the connections table
                     let (read_stream, write_stream) = tcp_stream.into_split();
-                    let mut write_streams = write_streams_driver
+                    let mut write_streams = write_streams_network
                         .lock()
                         .expect("should be able to lock mutex");
                     write_streams.insert(addr, write_stream);
@@ -302,8 +302,8 @@ pub async fn main() {
         }
     });
 
-    // run logic thread (in this thread)
-    start_node(
+    // run logic task (in this thread)
+    start_logic(
         args.clone(),
         &all_nodes,
         shutdown_rx,
