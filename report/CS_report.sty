@@ -1,0 +1,132 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%                                                                           %%
+%%   Dr Todd R Jones                                                           %%
+%%   Lecturer, Department of Computer Science                                %% 
+%%   University of Reading, UK                                               %%
+%%                                                                           %%
+%%  Based on template created by Dr Varun Ojha                               %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%     SETTING STARTS - DO NOT CHANGE Unless your TeX setting require so   %%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+%%-------------------------------------
+%% Page margin settings - % half inch margin all sides (recommended)
+%%-------------------------------------
+\usepackage[margin=1.2in]{geometry} 
+
+%%-------------------------------------
+%% Font settings - % Sans-serif font (recommended)
+%%-------------------------------------
+% Switch the following section off to revert back to defult LaTex font (NOT recomended)
+% DISABLE final line to permit small caps with a warning; default for algorithm function name
+\usepackage[T1]{fontenc}  % Set up font encoding to T1, which is suitable for European languages and provides better hyphenation and character support
+\usepackage{lmodern}      % Load the Latin Modern font family, which is an enhanced version of Computer Modern with more characters and font shapes
+\renewcommand*\familydefault{\sfdefault}  % Change the default font family to sans-serif (lmss), so the entire document uses a sans-serif font by default
+\usepackage{slantsc}  % Adjusts the appearance of small caps and slanted fonts
+\usepackage{relsize}  % Enables relative font size changes, useful for adjusting the size of fonts in commands
+\usefont{T1}{lmss}{m}{n}\selectfont  % Force LaTeX to load the lmss font family for next line
+\DeclareFontShape{T1}{lmss}{m}{sc}{<->ssub*lmss/m/n}{}  % Declare a new font shape for small caps in the 'lmss' font family; This tells LaTeX that when small caps (sc) are requested in the medium weight (m) of 'lmss', it should substitute it with the normal (n) shape
+
+
+
+
+
+%%-------------------------------------
+%% Math/Definition/Theorem/Algorithm packages settings 
+%%-------------------------------------
+\usepackage{sansmath}
+\sansmath
+\usepackage[cmex10]{amsmath}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\newtheorem{mydef}{Definition}
+\newtheorem{mytherm}{Theorem}
+
+%%-------------------------------------
+%% Algorithms/Code Listing environment settings  - 
+%% Please do not change these settings
+%%-------------------------------------
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+\renewcommand{\algorithmicrequire}{\textbf{Input:}}
+\renewcommand{\algorithmicensure}{\textbf{Output:}}
+\usepackage[utf8]{inputenc}
+\usepackage{listings}
+\usepackage{xcolor}
+\definecolor{codegreen}{rgb}{0,0.6,0.1}
+\definecolor{codegray}{rgb}{0.5,0.5,0.5}
+\definecolor{codeblue}{rgb}{0.10,0.00,1.00}
+\definecolor{codepurple}{rgb}{0.58,0,0.82}
+\definecolor{backcolour}{rgb}{1.0,1.0,1.0}
+
+\lstdefinestyle{mystyle}{
+    backgroundcolor=\color{backcolour},   
+    commentstyle=\color{codegreen},
+    keywordstyle=\color{codeblue},
+    numberstyle=\tiny\color{codegray},
+    stringstyle=\color{codepurple},
+    basicstyle=\ttfamily\footnotesize,
+    breakatwhitespace=false,         
+    breaklines=true,                 
+    captionpos=b,                        
+    keepspaces=true,                 
+    numbers=left,                    
+    numbersep=5pt,                  
+    showspaces=false,                
+    showstringspaces=false,
+    showtabs=false,                  
+    tabsize=2,
+    frame=none
+}
+\lstset{style=mystyle}
+
+%%-------------------------------------
+%% Graphics/Figures environment settings
+%%-------------------------------------
+\usepackage{graphicx}
+\usepackage{subfigure}
+\usepackage{caption}
+\usepackage{lipsum}
+
+%%-------------------------------------
+%% Table environment settings
+%%-------------------------------------
+\usepackage{multirow}
+\usepackage{rotating}
+\usepackage{makecell}
+\usepackage{booktabs}
+%\usepackage{longtable,booktabs}
+
+%%-------------------------------------
+%% List of Abbreviations settings
+%%-------------------------------------
+\usepackage{enumitem}
+\newlist{abbrv}{itemize}{1}
+\setlist[abbrv,1]{label=,labelwidth=1in,align=parleft,itemsep=0.1\baselineskip,leftmargin=!}
+
+%%-------------------------------------
+%% Bibliography/References settings   - Harvard Style was used in this report
+%%-------------------------------------
+\usepackage[hidelinks]{hyperref}
+\usepackage[nameinlink]{cleveref}
+\definecolor{DarkBlue}{rgb}{0.00,0.00,0.50}
+\hypersetup{colorlinks=true,
+            linkcolor=blue,
+            filecolor=magenta,
+            urlcolor=cyan,
+            citecolor=DarkBlue,
+            pdftitle={CP4101 Report},
+            }
+\usepackage[square, numbers]{natbib}
+\bibliographystyle{abbrvnat}
+\renewcommand{\bibname}{References} % DO NOT remove or switch of 
+
+%%-------------------------------------
+%% Appendix settings     
+%%-------------------------------------
+\usepackage[toc]{appendix}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%                     SETTING ENDS                                            %%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

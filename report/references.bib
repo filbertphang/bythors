@@ -1,0 +1,316 @@
+% references for lit review
+@book{dsbook,
+  title={Distributed Systems: Concepts and Design},
+  author={Coulouris, G. and Dollimore, J. and Kindberg, T. and Blair, G.},
+  isbn={9780133001372},
+  url={https://books.google.com.sg/books?id=3ZouAAAAQBAJ},
+  year={2011},
+  publisher={Pearson Education}
+}
+
+@article{smr,
+author = {Schneider, Fred B.},
+title = {Implementing fault-tolerant services using the state machine approach: a tutorial},
+year = {1990},
+issue_date = {Dec. 1990},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {22},
+number = {4},
+issn = {0360-0300},
+url = {https://doi.org/10.1145/98163.98167},
+doi = {10.1145/98163.98167},
+abstract = {The state machine approach is a general method for implementing fault-tolerant services in distributed systems. This paper reviews the approach and describes protocols for two different failure modelsΓÇöByzantine and fail stop. Systems reconfiguration techniques for removing faulty components and integrating repaired components are also discussed.},
+journal = {ACM Comput. Surv.},
+month = dec,
+pages = {299-319},
+numpages = {21}
+}
+
+@article{bgp-lamport,
+author = {Lamport, Leslie and Shostak, Robert and Pease, Marshall},
+title = {The Byzantine Generals Problem},
+year = {1982},
+month = {July},
+abstract = {I have long felt that, because it was posed as a cute problem about philosophers seated around a table, Dijkstra's dining philosopher's problem received much more attention than it deserves. (For example, it has probably received more attention in the theory community than the readers/writers problem, which illustrates the same principles and has much more practical importance.) I believed that the problem introduced in [41] was very important and deserved the attention of computer scientists. The popularity of the dining philosophers problem taught me that the best way to attract attention to a problem is to present it in terms of a story.
+
+There is a problem in distributed computing that is sometimes called the Chinese Generals Problem, in which two generals have to come to a common agreement on whether to attack or retreat, but can communicate only by sending messengers who might never arrive. I stole the idea of the generals and posed the problem in terms of a group of generals, some of whom may be traitors, who have to reach a common decision. I wanted to assign the generals a nationality that would not offend any readers. At the time, Albania was a completely closed society, and I felt it unlikely that there would be any Albanians around to object, so the original title of this paper was The Albanian Generals Problem. Jack Goldberg was smart enough to realize that there were Albanians in the world outside Albania, and Albania might not always be a black hole, so he suggested that I find another name. The obviously more appropriate Byzantine generals then occurred to me.
+
+The main reason for writing this paper was to assign the new name to the problem. But a new paper needed new results as well. I came up with a simpler way to describe the general 3n+1-processor algorithm. (Shostak's 4-processor algorithm was subtle but easy to understand; Pease's generalization was a remarkable tour de force.) We also added a generalization to networks that were not completely connected. (I don't remember whose work that was.) I also added some discussion of practical implementation details.},
+url = {https://www.microsoft.com/en-us/research/publication/byzantine-generals-problem/},
+pages = {382-401},
+journal = {ACM Transactions on Programming Languages and Systems},
+}
+
+@book{fvdefn,
+editor = {De Micheli, Giovanni and Ernst, Rolf and Wolf, Wayne},
+title = {Readings in hardware/software co-design},
+year = {2001},
+isbn = {1558607021},
+publisher = {Kluwer Academic Publishers},
+address = {USA},
+abstract = {Readings in Hardware/Software Co-Design presents the papers that have shaped the hardware/software co-design field since its inception in the early 1990s. Field experts Giovanni De Micheli, Rolf Ernst, and Wayne Wolf introduce sections of the book and provide context for the papers that follow. This collection provides professionals, researchers, and graduate students with a single reference source for this critical aspect of computing design.}
+}
+
+@article{compcert,
+author = {Leroy, Xavier},
+title = {Formal verification of a realistic compiler},
+year = {2009},
+issue_date = {July 2009},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {52},
+number = {7},
+issn = {0001-0782},
+url = {https://doi.org/10.1145/1538788.1538814},
+doi = {10.1145/1538788.1538814},
+abstract = {This paper reports on the development and formal verification (proof of semantic preservation) of CompCert, a compiler from Clight (a large subset of the C programming language) to PowerPC assembly code, using the Coq proof assistant both for programming the compiler and for proving its correctness. Such a verified compiler is useful in the context of critical software and its formal verification: the verification of the compiler guarantees that the safety properties proved on the source code hold for the executable compiled code as well.},
+journal = {Commun. ACM},
+month = jul,
+pages = {107-115},
+numpages = {9}
+}
+
+@article{fv-disc,
+author = {Kern, Christoph and Greenstreet, Mark R.},
+title = {Formal verification in hardware design: a survey},
+year = {1999},
+issue_date = {April 1999},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {4},
+number = {2},
+issn = {1084-4309},
+url = {https://doi.org/10.1145/307988.307989},
+doi = {10.1145/307988.307989},
+abstract = {In recent years, formal methods have emerged as an alternative approach to ensuring the quality and correctness of hardware designs, overcoming some of the limitations of traditional validation techniques such as simulation and testing.There are two main aspects to the application of formal methods in a design process: the formal framework used to specify desired properties of a design and the verification techniques and tools used to reason about the relationship between a specification and a corresponding implementation. We survey a variety of frameworks and techniques proposed in the literature and applied to actual designs. The specification frameworks we describe include temporal logics, predicate logic, abstraction and refinement, as well as containment between  ╧ë-regular languages. The verification techniques presented include model checking, automata-theoretic techniques, automated theorem proving, and approaches that integrate the above methods.In order to provide insight into the scope and limitations of currently available techniques, we present a selection of case studies where formal methods were applied to industrial-scale designs, such as microprocessors, floating-point hardware, protocols, memory subsystems, and communications hardware.},
+journal = {ACM Trans. Des. Autom. Electron. Syst.},
+month = apr,
+pages = {123-193},
+numpages = {71},
+keywords = {theorem proving, survey, model checking, language containment, hardware verification, formal verification, formal methods, case studies}
+}
+
+@inbook{fv-drift,
+author = {Hähnle, Reiner},
+year = {2007},
+month = {04},
+pages = {1-18},
+title = {A New Look at Formal Methods for Software Construction},
+isbn = {978-3-540-68977-5},
+doi = {10.1007/978-3-540-69061-0_1}
+}
+
+@inproceedings{lean4,
+author = {Moura, Leonardo de and Ullrich, Sebastian},
+title = {The Lean 4 Theorem Prover and Programming Language},
+year = {2021},
+isbn = {978-3-030-79875-8},
+publisher = {Springer-Verlag},
+address = {Berlin, Heidelberg},
+url = {https://doi.org/10.1007/978-3-030-79876-5_37},
+doi = {10.1007/978-3-030-79876-5_37},
+abstract = {Lean 4 is a reimplementation of the Lean interactive theorem prover (ITP) in Lean itself. It addresses many shortcomings of the previous versions and contains many new features. Lean 4 is fully extensible: users can modify and extend the parser, elaborator, tactics, decision procedures, pretty printer, and code generator. The new system has a hygienic macro system custom-built for ITPs. It contains a new typeclass resolution procedure based on tabled resolution, addressing significant performance problems reported by the growing user base. Lean 4 is also an efficient functional programming language based on a novel programming paradigm called functional but in-place. Efficient code generation is crucial for Lean users because many write custom proof automation procedures in Lean itself.},
+booktitle = {Automated Deduction - CADE 28: 28th International Conference on Automated Deduction, Virtual Event, July 12-15, 2021, Proceedings},
+pages = {625-635},
+numpages = {11}
+}
+
+@INPROCEEDINGS{coq,
+  author={Lenko, Vasyl and Pasichnyk, Volodymyr and Kunanets, Nataliia and Shcherbyna, Yuriy},
+  booktitle={2018 IEEE First International Conference on System Analysis & Intelligent Computing (SAIC)}, 
+  title={Type- Theoretical Foundations of the Derivation System in Coq}, 
+  year={2018},
+  volume={},
+  number={},
+  pages={1-6},
+  keywords={Calculus;Information systems;Functional programming;Cognition;Syntactics;Intelligent systems;Solids;type theory;formal reasoning;lambda calculus;Gallina;purely functional programming;Coq},
+  doi={10.1109/SAIC.2018.8516885}
+}
+
+@inproceedings{agda,
+author = {Bove, Ana and Dybjer, Peter and Norell, Ulf},
+title = {A Brief Overview of Agda --- A Functional Language with Dependent Types},
+year = {2009},
+isbn = {9783642033582},
+publisher = {Springer-Verlag},
+address = {Berlin, Heidelberg},
+url = {https://doi.org/10.1007/978-3-642-03359-9_6},
+doi = {10.1007/978-3-642-03359-9_6},
+abstract = {We give an overview of Agda, the latest in a series of dependently typed programming languages developed in Gothenburg. Agda is based on Martin-L\"{o}f's intuitionistic type theory but extends it with numerous programming language features. It supports a wide range of inductive data types, including inductive families and inductive-recursive types, with associated flexible pattern-matching. Unlike other proof assistants, Agda is not tactic-based. Instead it has an Emacs-based interface which allows programming by gradual refinement of incomplete type-correct terms.},
+booktitle = {Proceedings of the 22nd International Conference on Theorem Proving in Higher Order Logics},
+pages = {73-78},
+numpages = {6},
+location = {Munich, Germany},
+series = {TPHOLs '09}
+}
+
+@inproceedings{4color,
+author = {Gonthier, Georges},
+title = {The Four Colour Theorem: Engineering of a Formal Proof},
+year = {2008},
+isbn = {978-3-540-87826-1},
+publisher = {Springer-Verlag},
+address = {Berlin, Heidelberg},
+url = {https://doi.org/10.1007/978-3-540-87827-8_28},
+doi = {10.1007/978-3-540-87827-8_28},
+abstract = {The 150 year old Four Colour Theorem is the first famous result with a proof that requires large computer calculations. Such proofs are still controversial: It is thought that computer programs cannot be reviewed with mathematical rigor.To overturn this belief, we have created a fully computer-checked proof of the Four Colour Theorem. Using the Coq proof assistant, we wrote an extended program that specifies both the calculations and their mathematical justification. Only the interface of the program - the statement of the theorem - needs to be reviewed. The rest (99.8\%) is self-checking: Coq verifies that it strictly follows the rules of logic. Thus, our proof is more rigorous than a traditional one.Our effort turned out to be more than just an exercise in verification; having to definine rigorously all key concepts provided new mathematical insight into the concept of planarity. Planarity has topological and combinatorial characterizations, which are often confused in arguments that are both pictorially appealing and logically incomplete. The rigor of our computer proof imposed a strict separation between the two.We developed a purely combinatorial theory of planarity based on a symmetrical presentation of hypermaps, which greatly simplified the proof. The theory supplies an elegant analogue of the Jordan Curve property, which allowed us to prove the Theorem under minimal topological assumptions, without appealing to Jordan Curve theorem.},
+booktitle = {Computer Mathematics: 8th Asian Symposium, ASCM 2007, Singapore, December 15-17, 2007. Revised and Invited Papers},
+pages = {333},
+numpages = {1},
+location = {Singapore, Singapore}
+}
+
+@inproceedings{dsbugs,
+author = {Fonseca, Pedro and Zhang, Kaiyuan and Wang, Xi and Krishnamurthy, Arvind},
+title = {An Empirical Study on the Correctness of Formally Verified Distributed Systems},
+year = {2017},
+isbn = {9781450349383},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/3064176.3064183},
+doi = {10.1145/3064176.3064183},
+abstract = {Recent advances in formal verification techniques enabled the implementation of distributed systems with machine-checked proofs. While results are encouraging, the importance of distributed systems warrants a large scale evaluation of the results and verification practices.This paper thoroughly analyzes three state-of-the-art, formally verified implementations of distributed systems: Iron-Fleet, Verdi, and Chapar. Through code review and testing, we found a total of 16 bugs, many of which produce serious consequences, including crashing servers, returning incorrect results to clients, and invalidating verification guarantees. These bugs were caused by violations of a wide-range of assumptions on which the verified components relied. Our results revealed that these assumptions referred to a small fraction of the trusted computing base, mostly at the interface of verified and unverified components. Based on our observations, we have built a testing toolkit called PK, which focuses on testing these parts and is able to automate the detection of 13 (out of 16) bugs.},
+booktitle = {Proceedings of the Twelfth European Conference on Computer Systems},
+pages = {328-343},
+numpages = {16},
+location = {Belgrade, Serbia},
+series = {EuroSys '17}
+}
+
+@article{bythos,
+  title={Compositional Verification of Composite Byzantine Protocols},
+  author={Zhao, Qiyuan and P{\^\i}rlea, George and Grzeszkiewicz, Karolina and Gilbert, Seth and Sergey, Ilya},
+  year={2024}
+}
+
+@book{refinement,
+author = {Morgan, Carroll},
+title = {Programming from specifications},
+year = {1990},
+isbn = {0137262256},
+publisher = {Prentice-Hall, Inc.},
+address = {USA}
+}
+
+@inproceedings{extraction,
+author = {Letouzey, Pierre},
+year = {2008},
+month = {06},
+pages = {},
+title = {Extraction in Coq, an Overview},
+journal = {Lecture Notes in Computer Science},
+doi = {10.1007/978-3-540-69407-6}
+}
+
+@misc{rustlang,
+      title={Rust: The Programming Language for Safety and Performance}, 
+      author={William Bugden and Ayman Alahmar},
+      year={2022},
+      eprint={2206.05503},
+      archivePrefix={arXiv},
+      primaryClass={cs.PL},
+      url={https://arxiv.org/abs/2206.05503}, 
+}
+
+
+@misc{safestake,
+	title = {{SafeStake}: {A} trust-minimized middle layer for secure, decentralized {ETH} staking {\textbar} {SafeStake} {Overview}},
+	shorttitle = {{SafeStake}},
+	url = {https://docs.safestake.xyz/safestake-overview/},
+	language = {en},
+	urldate = {2024-11-04},
+	month = oct,
+	year = {2024},
+}
+
+@misc{cosmos,
+	title = {Cosmos {Network} - {Internet} of {Blockchains}},
+	url = {https://cosmos.network},
+	abstract = {The interoperable, scalable blockchain network. Built for developers.},
+	language = {en},
+	urldate = {2024-11-04},
+	journal = {Cosmos Network},
+}
+
+@misc{idris2,
+	title = {Changes since {Idris} 1 - {Idris2} 0.0 documentation},
+	url = {https://idris2.readthedocs.io/en/latest/updates/updates.html},
+	urldate = {2024-11-04},
+}
+
+@misc{busybeaver,
+	title = {[{July} 2nd 2024] {We} have proved "{BB}(5) = 47,176,870"},
+	url = {https://discuss.bbchallenge.org/t/july-2nd-2024-we-have-proved-bb-5-47-176-870/237},
+	abstract = {BB(5) = 47,176,870  We are extremely happy to announce that, after two years of intense collaboration, the goal of the Busy Beaver Challenge has been reached: the conjecture ΓÇ£BB(5) = 47,176,870ΓÇ¥ is proved. Exceeding our expectations, the proof has been formally written in Coq by collaborator mxdys whose work improves on and/or uses the contributions of more than 10 other bbchallenge contributors (see credits).  The formal theoremΓÇÖs statement was reviewed by independent Coq experts (see credits) ...},
+	language = {en},
+	urldate = {2024-11-04},
+	journal = {The Busy Beaver Challenge},
+	month = jul,
+	year = {2024},
+}
+
+@misc{pfr-lean,
+	title = {The {Polynomial} {Freiman}-{Ruzsa} {Conjecture}},
+	url = {https://teorth.github.io/pfr//},
+	abstract = {A digitisation of the proof of the Polynomial Freiman-Ruzsa Conjecture in Lean 4},
+	language = {en-US},
+	urldate = {2024-11-04},
+	journal = {The Polynomial Freiman-Ruzsa Conjecture},
+}
+
+@misc{pb,
+	title = {Provable {Broadcast}},
+	url = {https://decentralizedthoughts.github.io/2022-09-10-provable-broadcast/},
+	abstract = {We explore a family of broadcast protocols in the authenticated setting in which a designated sender wants to create a delivery-certificate of its input value. After describing the base protocol we call Provable Broadcast (\$PB\$), we explore the surprising power of simply running \$PB\$ two times in a row, then...},
+	language = {en},
+	urldate = {2024-11-04},
+	author = {Thinkers, Decentralized},
+}
+
+@misc{libp2p,
+	title = {libp2p - {A} modular network stack},
+	url = {https://libp2p.io/},
+	abstract = {Run your network applications free from runtime and address services, independently of their location.},
+	language = {en},
+	urldate = {2024-11-04},
+	journal = {libp2p},
+	author = {Foundation, The libp2p},
+}
+
+@misc{tokio,
+	title = {Tokio - {An} asynchronous {Rust} runtime},
+	url = {https://tokio.rs/},
+	abstract = {Tokio is a runtime for writing reliable asynchronous applications with Rust. It provides async I/O, networking, scheduling, timers, and more.},
+	urldate = {2024-11-04},
+}
+
+
+@misc{rb,
+	title = {Living with {Asynchrony}: {Bracha}'s {Reliable} {Broadcast}},
+	shorttitle = {Living with {Asynchrony}},
+	url = {https://decentralizedthoughts.github.io/2020-09-19-living-with-asynchrony-brachas-reliable-broadcast/},
+	abstract = {In this series of posts, we explore what can be done in the Asynchronous model. This model seems challenging because the adversary can delay messages by any bounded time. By the end of this series, you will see that almost everything that can be done in synchrony can be obtained...},
+	language = {en},
+	urldate = {2024-11-04},
+	author = {Thinkers, Decentralized},
+}
+
+
+@misc{my-lean-sys,
+	title = {lean-sys (custom fork)},
+	url = {https://github.com/filbertphang/lean-sys},
+	author = {, filbertphang},
+}
+
+@misc{lean-sys,
+	title = {lean-sys},
+	url = {https://github.com/digama0/lean-sys},
+	author = {, digama0},
+}
+
+@misc{lean-rs,
+	title = {lean-rs},
+	url = {https://github.com/digama0/lean-rs},
+	author = {, digama0},
+}

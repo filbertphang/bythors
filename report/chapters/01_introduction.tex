@@ -1,0 +1,21 @@
+\chapter{Project Objectives}
+\label{ch:into} % This how you label a chapter and the key (e.g., ch:into) will be used to refer this chapter ``Introduction'' later in the report. 
+% the key ``ch:into'' can be used with command \ref{ch:intor} to refere this Chapter.
+
+The primary aim of this project is to extract a performant Rust implementation of various distributed systems components that are verified in Lean.\\
+
+We describe the expected deliverable as well as the motivation for this project in greater detail in chapters \ref{ch:lit_rev} and \ref{ch:progress}, but we first provide a brief overview of the project goals.\\
+
+Concretely, we have implementations of various byzantine fault-tolerant consensus protocols in the Lean 4 theorem prover. These protocols are implemented and modelled such that safety and liveness properties can be proven and verified directly in Lean. In this project, we aim to develop a library to allow for direct execution of these protocols. Our library aims to fulfill the below objectives, though we note that the full scope of the project is still evolving:
+
+\begin{itemize}
+    \item \textbf{Performant.} While Lean has a powerful type system which is useful for proving properties about programs, it lacks the speed necessary for use in a practical setting. Hence, our library should allow for us to run these protocols with reasonable practical performance.
+    
+    \item \textbf{Ergonomic.} Lean is still a relatively obscure programming language, and is not used in most practical settings. We want to develop a library that is intended for practical use, which means developing API endpoints for more widely-used programming languages like Rust.
+
+    \item \textbf{Modular.} We intend for our library to be protocol-agnostic. In other words, any user of our library should be able to "plug-and-play" their Lean-verified protocol implementation to use with our library.
+    
+    \item \textbf{Verified.} Our library should rely almost entirely on Lean for the protocol mechanism, so as to guarantee the presence of safety and liveness properties. Taking the protocol out of Lean means potentially introducing bugs into the system, which may compromise the above properties.
+\end{itemize}
+
+

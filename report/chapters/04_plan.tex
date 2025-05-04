@@ -1,0 +1,53 @@
+\chapter{Research Plan}
+\label{ch:plan}
+
+This section details the plan for the upcoming semester.
+
+\section{Library}
+\subsection{Minimum Viable Product}
+While a minimum viable product (MVP) for the library is still in development, we note that most of the challenging aspects of writing the driver code have been identified and explored, with proofs of concepts developed for each such aspect. Hence, all that remains is to put everything together and fully implement the library, and we expect an initial draft to be released before the semester ends.
+
+\subsection{Further Improvements}
+After an MVP is released, we can continue to iterate on the library to improve its usability. Below are some aspects that could be considered for improvement:
+\begin{itemize}
+    \item Documentation
+    \item External API Design
+    \item Modularity (e.g. support for alternative networking stacks)
+    \item Error handling (e.g. current implementation makes liberal use of \code{unwrap()}, which does not provide informative error messages to the user)
+\end{itemize}
+
+\subsection{Client Application}
+A sample client application making use of our library could also be developed to showcase a practical application of our library.
+
+\section{Lean-Rust Interoperability Crate}
+An alternative direction for this project could be to instead focus on the development of a Lean-Rust interoperability crate.
+\\
+
+The rationale for this is simple: although lean-sys exists, it only provides a very low-level set of bindings, meaning that data types from Lean must still be manually translated into Rust and vice versa, and programmers must be aware of the low-level memory layout of objects in both languages. However, we note that Lean and Rust data types are very similar structurally: Lean structures resemble Rust structs, and Lean inductives represent Rust enums. As such, disregarding various quirks regarding Lean's memory representation of structure fields, it is theoretically possible to derive an equivalent Rust type for a given Lean type, along with automatically-generated functions to marshall between the two. This can be implemented via Rust metaprogramming (i.e. the macro system).
+\\
+
+We also note that both Lean and Rust have a borrowing system as part of their memory management strategies. Currently, with lean-sys, the programmer is responsible for manually decerementing the reference count on the Lean side to ensure that unused variables can be cleaned up, which is a potential source of memory leaks due to programmer error. We can address this by implementing traits like \code{Drop} on Rust-marshalled Lean objects to automatically decrement the Lean reference count of a variable once the Rust binding goes out of scope, allowing the programmer to write safer code.
+\\
+
+Another possible feature to further improve type safety would involve automatically deriving wrappers over FFI calls to Lean. Currently, any non-primitive Lean type is represented in Rust as \code{*mut lean_object} (via lean-sys), which is a mutable pointer to an arbitrary \code{lean_object} type. This means that on the Rust side, we have no type-level information of what this piece of data contains, which is unsafe. By wrapping over these FFI definitions with equivalent Rust types, we can preserve type information across the Lean-Rust boundary. To illustrate, consider the following example:
+
+\begin{itemize}
+    \item \textbf{Lean function:}\\
+    \code {def id_str (s: String) -> String := s}.
+    \\
+    This is the identity function on Strings.
+
+    \item \textbf{Rust FFI definition (with lean-sys):}\\ 
+    \code{extern fn id_str (s: *mut lean_object) -> *mut lean_object;}\\
+    lean-sys represents non-primitive Lean values as \code{*mut lean_object}.
+
+    \item \textbf{Rust FFI wrapper (proposed):}\\ 
+    \code{fn id_str_lean (s: String) -> String;}\\
+    \code{id_str_lean} is a wrapper over \code{id_str} that uses a Rust representation of the string type.  It is responsible for casting it to the Lean representation before calling \code{id_str}, and casting the result back to a Rust string before returning it to the user.
+\end{itemize}
+
+Since there is no way for Rust to infer what the Lean function signature should be, it would make sense for the user to use a macro to state the expected function signature, then have that macro derive the FFI binding to Lean. In other words, the wrapper derives the FFI binding, not the other way around.
+\\
+
+lean-rs is an existing crate that offers higher-level bindings between Lean and Rust, developed by the same authors as lean-sys. However, it has gone unmaintained, and there does not seem to be any other packages that fulfill this role, so this could certainly be an interesting and meaningful direction for this project.
+\\

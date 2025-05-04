@@ -1,0 +1,112 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%----------------------------------------------------------------------------------
+% DO NOT Change this is the required setting A4 page, 11pt, onside print, book style
+%%----------------------------------------------------------------------------------
+\documentclass[a4paper,11pt,oneside]{book} 
+\usepackage{CS_report} % DO NOT REMOVE THIS LINE. 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\NewDocumentCommand{\code}{v}{%
+\texttt{\textcolor{blue}{#1}}%
+}
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+
+    \captionsetup[figure]{margin=1.5cm,font=small,name={Figure},labelsep=colon}
+    \captionsetup[table]{margin=1.5cm,font=small,name={Table},labelsep=colon}
+    
+    \frontmatter
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \begin{titlepage}      
+        \begin{center}
+            \includegraphics[width=6cm]{figures/nuslogo.jpg}\\[0.3cm]
+            {\LARGE National University of Singapore\\[0.5cm]
+            School of Computing}\\[2cm]
+			%{\color{blue} \rule{\textwidth}{1pt}}
+			
+			% -------------------------------
+			% You need to edit some details here
+			% -------------------------------  
+            {\large CP4101 B.Comp. Dissertation}\\
+            \linespread{1.2}\huge {
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                %TODO: 1 TITLE of Your PROJECT 
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                % change the following line                
+                Linking Rust Code with Lean
+            
+            }
+            \linespread{1}~\\[2cm]
+			%{\color{blue} \rule{\textwidth}{1pt}}
+            {\Large 
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                %TODO: 2 YOUR NAME
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%             
+                % change the following line
+                Filbert Phang Kong San
+                % change end             
+            }\\[1cm] 
+            
+            \vfill
+
+            {\large \emph{Project ID:} H258040}\\ 
+            {\large \emph{Supervisor:} Ilya Sergey}\\
+            {\large \emph{Main Evaluator:} Yu Haifeng}\\[1cm]
+            
+        \end{center}
+    \end{titlepage}
+    
+    
+    
+    % -------------------------------------------------------------------
+    % Contents, list of figures, list of tables
+    % -------------------------------------------------------------------
+    
+    \tableofcontents
+    % \listoffigures
+    % \listoftables
+    % \input{glossaries} %  Enter your list of Abbreviation and Symbols in this file
+
+
+
+    
+    
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %%                                                                    %%  
+    %%  Main chapters and sections of your project                        %%  
+    %%  Everything from here on needs updates in your own words and works %%
+    %%                                                                    %%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    \mainmatter
+    % Read for preparation of document in LaTex 
+    % Lamport, L. (1986), LATEX: A Document Preparation System, Addison-Wesley.
+    
+    \input{chapters/01_introduction}
+    \input{chapters/02_literature} 
+    \input{chapters/03_progress}
+    \input{chapters/04_plan}
+
+
+    
+
+    
+    % -------------------------------------------------------------------
+    % Bibliography/References  -  Harvard Style was used in this report
+    % -------------------------------------------------------------------
+    \bibliographystyle{agsm} % Harvard Style 
+    
+    \bibliography{references}  %  Patashnik, O. (1988), BibTEXing. Documentation for general BibTEX users.
+    
+    % -------------------------------------------------------------------
+    % Appendices
+    % -------------------------------------------------------------------
+    
+    % \begin{appendices}
+    %     \input{chapters/appendix_A.tex}
+    %     \input{chapters/appendix_B.tex}
+    % \end{appendices}
+    
+\end{document}

@@ -1,0 +1,86 @@
+\chapter{Progress}
+\label{ch:progress} 
+
+This section describes the current development progress of the library while also documenting several key design decisions made. We first present a diagram describing the structure of our library as well as its links to external components. We then describe each component in greater detail below.
+\\
+
+\begin{figure}[!htb]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures/arch.pdf}
+    \caption{Overall structure of our library.}
+    \label{fig:arch}
+\end{figure}
+
+\section{Overview}
+Our library is a driver for Bythos. Although the library is written in Rust, the driver is only responsible for handling networking and cryptographic functions. The driver will defer the actual protocol execution to Bythos in Lean, since the protocols implemented there will be verified to be correct. This Lean-Rust interfacing is done via C Foreign Function Interface (FFI). Client applications can use our library as a networking layer to ensure that all nodes come to a consensus on messages sent via our library. The library is still in active development, and the source code for the library is publicly available at \url{https://github.com/filbertphang/pb-rust}\footnote{The name "pb-rust" is a bit of a misnomer. The original git repository was created as an implementation of Provable Broadcast in Rust. Over time, the repository ended up being the de-facto repository for all project-related work.}.
+\\
+
+\section{Lean 4}
+\subsection{Bythos}
+The Bythos framework \cite{bythos} is the main work that this project aims to provide a Rust driver for. Although Bythos is currently implemented in Coq, there is a Lean 4 port currently in active development, which will be used for the purposes of this project. 
+\\
+
+\subsection{Reliable Broadcast}
+The example protocol used in development is an implementation of the Reliable Broadcast protocol \cite{rb} using the Bythos framework. This version includes the actual protocol implementation as well as proofs that the protocol fulfills various properties like Safety and Liveness, though from a practical standpoint, we are only concerned with interfacing with the actual protocol implementation and not the proofs. We also note that any protocol satisfying the interface provided by Bythos should be able to work out-of-the-box with our library.
+\\
+
+\section{Rust}
+\subsection{libp2p and tokio}
+libp2p \cite{libp2p} (with a tokio backend \cite{tokio}) is our networking stack of choice. libp2p is a peer-to-peer networking library which provides various higher-level networking primitives that we build our library upon:
+
+\begin{itemize}
+    \item \textbf{mDNS.} libp2p supports mDNS for automatic peer discovery, allowing nodes to discover one another in a dynamic manner.
+    
+    \item \textbf{Request-Response.} libp2p also supports a generic Request-Response protocol, allowing us to directly send and receive requests and responses from other nodes. Request and response message types can be customized, with the only requirement being that these messages are serializable so that they may be sent over the wire. This allows us to eliminate implementing our own communication primitives.
+
+    \item \textbf{Protocol composition.} Most importantly, libp2p allows us to compose these communication protocols together, so we can discover peers and send messages via a single protocol with minimal boilerplate.
+\end{itemize}
+
+An exploration of libp2p's functionality, as well as a proof of concept of the network driver to be developed can be found on the \href{https://github.com/filbertphang/pb-rust/tree/main/src/networktest}{project GitHub} repository.
+
+\section{Lean-Rust Interoperability}
+\subsection{C Foreign Function Interface (FFI)}
+We utilize the C Foreign Function Interface to transmit data across the Lean-Rust boundary. Both Lean and Rust have provisions for calling C functions and exporting functions to be callable in C. For example, we can export a Lean function as a C-callable function, then call that function as a C function from within Rust, effectively achieving Lean-Rust communication.
+
+\subsection{lean-sys}
+However, Lean and Rust represent data differently, so even if we are able to call functions across the language boundary, we can only call those functions with parameter data written in a format supported by the other language. Hence, we have to do a lot of data conversions (also known as data marshalling) behind-the-scenes to ensure that our data on the Rust side can be read by Lean, and vice versa.
+\\
+
+lean-sys is a crate that adds Lean bindings for Rust, simplifying the FFI process \cite{lean-sys}. However, the last updated version of lean-sys only supports up to Lean v4.8.0, while Bythos uses Lean v4.11.0. To remedy this, we created a custom fork of lean-sys that supports up to Lean v4.12.0, the latest version of Lean (at the time of writing) \cite{my-lean-sys}.
+
+\section{Implementation Details}
+Due to the way the proofs are modelled, the protocol implementation in Bythos has some quirks that affect our library design. Notably:
+
+\begin{itemize}
+    \item \textbf{Packet generation.} In a consensus protocol, when a node receives a packet from a node, they may respond by sending packets to other nodes. In our Lean implementation, each message-handler function simply generates a list of packets that should be sent to other nodes, but does not actually sends these packets. Hence, we must transfer this packet information from Lean to Rust in order to make use of the networking packages on the Rust side to deliver these messages. We discuss the specifics of this in section \ref{sec:packets}.
+    
+    \item \textbf{Message oracle.} In a consensus protocol, communication is done in \textit{rounds}, where every message sent by a node requires a round of consensus for other nodes to agree on the value being sent. In Bythos, the data structure tracking the initial values sent by nodes across all rounds is represented as a function of type $NodeAddress \times Round \rightarrow Value$, where a node's address is used as an identifier for that node. In other words, we assume we have some oracle that is able to precisely determine what value a node is going to send in a particular round. However, this is not practically feasible, since in real systems we cannot predict what messages will be sent ahead of time. We resolve this issue by introducing global state in our driver, and is discussed in section \ref{sec:global}.
+\end{itemize}
+
+\subsection{Packet Marshalling}
+\label{sec:packets}
+By looking at the implementation for RB in Lean, we can analyze the structure of the packet datatype we need to transfer between Lean and Rust. We identify several particularly challenging aspects of this type marshalling that we need to handle:
+\begin{itemize}
+    \item \textbf{Structures.} The Lean equivalent of Rust structs.
+    \item \textbf{Inductives.} The Lean equivalent of Rust enums (with additional powers).
+    \item \textbf{Compound types.} Lean structures can contain other structures or inductives in their fields. Likewise, Lean inductives can have structures or other inductives as part of their constructor. 
+\end{itemize}
+
+To handle this, we have written sample programs to demonstrate how complex types can be marshalled between Lean and Rust. Example code can be found on the
+\href{https://github.com/filbertphang/pb-rust/tree/main/src/ffitest}{project GitHub} repository. While working on this, we also implement several helpers to efficiently marshall between basic types like Strings.
+
+\subsection{Global State}
+\label{sec:global}
+
+We have briefly introduced the requirement of a message oracle on the Lean side, and also highlight how this cannot be fulfilled in a practical system. In a real system, this message oracle would be constantly updated with new information as nodes decide to send new values in real time. Since Lean functions are immutable and purely functional, the only workaround for this is to implement the oracle function as a FFI call to Rust instead.
+\\
+
+Although Rust functions are also immutable, they are not purely-functional, meaning that the same function call may return different outputs depending on some program state, which is what we need for our use case. Hence, on the Rust side, we expose an oracle function that reads from a global mutable hash table. When the client decides to send a message via our library, we first write to the global mutable hash table, so that any future function calls from Lean requesting the value of the sender node in that round will succeed. 
+\\
+
+While the use of global mutable state is generally viewed as bad programming practice, we claim that it is a necessary evil in this scenario. We note that any messages to be sent would be created by the client application and passed into the driver loop of our library, which resides in the \code{main} function. However, an exported FFI binding must be defined as a top-level function, meaning the only way to pass state between \code{main} and our exported query function is via the global program state.
+\\
+
+Example code to handle the construction and querying of the global hash table can be found on the 
+\href{https://github.com/filbertphang/pb-rust/tree/main/src/}{project GitHub} repository 
+(\code{src/ffitest/globals.rs}, \code{lib/Globals.lean}). 
