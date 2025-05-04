@@ -1,5 +1,7 @@
 use lean_sys::*;
 use std::fmt::{Debug, Display};
+
+/// Represents an interface that any network-transmissible message type should satisfy.
 pub trait Message:
     Debug + Display + serde::Serialize + serde::de::DeserializeOwned + std::marker::Send
 {

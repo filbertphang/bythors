@@ -1,5 +1,7 @@
 use lean_sys::*;
 
+/// Initializes the Lean runtime, as well as the callee library.
+// For more information, see:
 // https://lean-lang.org/lean4/doc/dev/ffi.html#initialization
 // https://git.leni.sh/aniva/RustCallLean/src/branch/main/src/main.rs#L30
 pub unsafe fn initialize_lean_environment(
@@ -22,7 +24,7 @@ pub unsafe fn initialize_lean_environment(
     lean_io_mark_end_initialization();
 }
 
-// io helpers
+// I/O helpers, unused
 #[allow(dead_code)]
 pub unsafe fn cleanup_lean_io(o: *mut lean_object) {
     if lean_io_result_is_ok(o) {

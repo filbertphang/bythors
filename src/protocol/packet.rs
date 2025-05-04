@@ -6,6 +6,7 @@ use crate::marshal::string::lean_string_to_rust;
 use lean_sys::*;
 use std::fmt::Debug;
 
+/// Represents a packet, which is a wrapper over a payload message M.
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct Packet<M> {
     pub src: String,
@@ -31,7 +32,6 @@ where
         self.msg.get_round()
     }
 
-    // TODO (old): check if the convention should be `from_lean` or `of_lean`.
     /// Converts a Lean packet to its Rust representation.
     pub unsafe fn from_lean(packet_lean: *mut lean_object, dec_refcount: bool) -> Self {
         let src_lean = lean_ctor_get(packet_lean, 0);

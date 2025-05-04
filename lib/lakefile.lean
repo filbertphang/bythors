@@ -28,6 +28,7 @@ require «lean-sts» from git "git@github.com:verse-lab/veil.git"@"9b6ed7d888a5d
 
 /-- The path to the static fat library in the package's `libDir`. -/
 @[inline] def fatStaticFile (self : LeanLib) : FilePath :=
+  -- note that the name of the fat static library has 'Fat' appended to it.
   self.pkg.nativeLibDir / nameToStaticLib s!"{self.config.libName}Fat"
 
 @[specialize] protected def LeanLib.buildFatStatic

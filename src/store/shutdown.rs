@@ -12,6 +12,9 @@ use tokio::sync::broadcast;
 /// The `Shutdown` struct listens for the signal and tracks that the signal has
 /// been received. Callers may query for whether the shutdown signal has been
 /// received or not.
+//
+// TODO: honestly not sure if this is needed or not.
+// the nodes might shut down properly on their own anyways.
 #[derive(Debug)]
 pub(crate) struct Shutdown {
     /// `true` if the shutdown signal has been received

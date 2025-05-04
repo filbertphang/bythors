@@ -2,6 +2,10 @@ use super::{raft::RaftPersistentState, Packet};
 
 use lean_sys::*;
 
+/// This protocol trait is outdated.
+/// This trait was originally supposed to provide a standardized interface for a protocol,
+/// back when we wanted to plug-and-play different protocols into the same application.
+/// As the project evolved, this functionality was no longer in the scope of this project.
 pub trait Protocol {
     type Message;
 

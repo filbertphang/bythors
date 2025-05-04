@@ -10,6 +10,7 @@ use crate::marshal::string::{lean_string_to_rust, rust_string_to_lean};
 
 use lean_sys::*;
 
+/// Rust representation of the part of a node's state that should be persistent (stored on disk).
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct RaftPersistentState {
     current_term: usize,

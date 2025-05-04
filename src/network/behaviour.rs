@@ -8,15 +8,15 @@ use libp2p::swarm::NetworkBehaviour;
 use libp2p::{mdns, request_response, StreamProtocol};
 use std::time::Duration;
 
-// define a custom behaviour, aggregating:
-// - mdns behaviour for peer discovery
-// - request_response behaviour for sending messages
-//   - cbor as serialization mechanism
-//   - <ProtocolRequest<P>, ProtocolResponse> as the request and response type respectively
-//     (P is the packet type)
-//
-// note: trait bound for Message on the struct definitioon is mandatory here due to the implementation
-// of cbor::Behaviour.
+/// A custom network behaviour that aggregates:
+/// - mdns behaviour for peer discovery
+/// - request_response behaviour for sending messages
+///   - cbor as serialization mechanism
+///   - <ProtocolRequest<P>, ProtocolResponse> as the request and response type respectively
+///     (P is the packet type)
+///
+/// Note: The trait bound for Message on the struct definition is mandatory here
+/// due to the implementation of cbor::Behaviour.
 #[derive(NetworkBehaviour)]
 pub struct ProtocolBehaviour<M>
 where
@@ -30,6 +30,8 @@ impl<M> ProtocolBehaviour<M>
 where
     M: Message,
 {
+    /// Instantiates a new ProtocolBehaviour from a keypair.
+    /// The keypair is used only for identification.
     pub fn new(keypair: &Keypair) -> Self {
         let local_peer_id = keypair.public().to_peer_id();
 

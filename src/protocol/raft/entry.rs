@@ -6,6 +6,7 @@ use crate::marshal::tuple::{lean_tuple_to_rust, rust_tuple_to_lean};
 
 use lean_sys::*;
 
+/// Rust representation of the RaftEntry struct in lib/Raft.lean.
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct RaftEntry {
     e_at: String,

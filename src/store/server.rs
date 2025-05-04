@@ -16,8 +16,19 @@ use tokio::net::TcpListener;
 use tokio::sync::broadcast;
 use tokio::{io, select};
 
+/// A simple distributed key-value store (for strings), using the Raft protocol
+/// each instance runs a single node/replica, running across several tasks:
+/// (network task)  accepts incoming tcp connections.
+///                 for an instance with node number n, the server runs on port (8000 + n).
+///                 node number is 1-indexed.
+/// (logic task) handles communication within the network, i.e., it talks to other nodes
+///              to reach consensus
+/// (client handler tasks) handle communication with clients, i.e. it recieves requests and sends
+///                        responses from/to clients
+
 const BCAST_CHANNEL_CAPACITY: usize = 1024;
 
+/// Command-line arguments for the server.
 #[derive(Parser, Clone)]
 struct Args {
     #[arg(long)]
@@ -45,6 +56,7 @@ struct Args {
     clear_data: bool,
 }
 
+/// Parses a key file into a PeerId.
 fn parse_public_key(path: &str) -> PeerId {
     let public_key_raw =
         std::fs::read(path).expect(&format!("should be able to read file at {path}"));
@@ -55,6 +67,7 @@ fn parse_public_key(path: &str) -> PeerId {
     peer_id
 }
 
+/// Starts the logic task.
 async fn start_logic(
     args: Args,
     all_nodes: &Vec<PeerId>,
@@ -170,6 +183,7 @@ async fn start_logic(
     }
 }
 
+/// Starts a client handler task.
 async fn start_client_handler(
     mut tcp_stream: tokio::net::tcp::OwnedReadHalf,
     addr: SocketAddr,
@@ -212,15 +226,6 @@ async fn start_client_handler(
     }
 }
 
-/// a simple distributed key-value store (for strings), using the raft protocol
-/// each instance runs a single node/replica, running across several tasks:
-/// - (server task)  handles cli-input from the user and accepts incoming tcp connections.
-///                    for an instance with node number n, the server runs on port (8000 + n).
-///                    node number is 1-indexed.
-/// - (consensus task) handles communication within the network, i.e., it talks to other nodes
-///   to reach consensus
-/// - (client handler tasks) handle communication with clients, i.e. it recieves requests and sends
-///   responses from/to clients
 #[tokio::main(flavor = "multi_thread", worker_threads = 8)]
 pub async fn main() {
     env_logger::init();

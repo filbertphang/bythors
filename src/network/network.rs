@@ -22,6 +22,8 @@ pub enum NetworkPollResult {
     OtherEvent,
 }
 
+/// Implements a network layer for the consensus protocol.
+/// The network layer is responsible for communication between nodes to reach consensus.
 pub struct Network<T>
 where
     T: Protocol,
@@ -38,6 +40,8 @@ where
     T: Protocol,
     T::Message: Message + 'static,
 {
+    /// Creates and sets up a new network.
+    /// Does not run anything yet.
     pub fn initialize(
         identity: Keypair,
         all_peer_ids: &Vec<PeerId>,
@@ -45,7 +49,7 @@ where
         init_lean: bool,
         node_state_path: PathBuf,
     ) -> Result<Self, Box<dyn Error>> {
-        // for diagnostics
+        // For diagnostics (I never figured out how to use this)
         // tracing_subscriber::fmt()
         //     .with_env_filter(EnvFilter::from_default_env())
         //     .init();
@@ -99,6 +103,8 @@ where
         Ok(network)
     }
 
+    /// Starts the network.
+    /// This connects to all nodes, and starts the protocol execution.
     pub async fn start(&mut self) {
         // wait for connections
         while self.swarm.connected_peers().count() != (self.all_peers.len() - 1) {
@@ -112,6 +118,10 @@ where
         }
     }
 
+    /// Polls the network for updates.
+    /// Network events occur as specified by the NetworkBehaviour.
+    /// We handle both MDNS events (for discovery) and
+    /// request-response events (for node-to-node communication) here.
     pub async fn poll(&mut self) -> NetworkPollResult {
         // handle a swarm event (poll the swarm)
         let event = self.swarm.select_next_some().await;
@@ -176,6 +186,7 @@ where
         }
     }
 
+    /// Gets the address of this node.
     fn get_address(&self) -> String {
         self.swarm.local_peer_id().to_string()
     }
@@ -189,6 +200,7 @@ where
         self.transmit(packets);
     }
 
+    /// Handles an incoming packet from a node.
     fn handle_request(
         &mut self,
         request: ProtocolRequest<T::Message>,
@@ -212,6 +224,7 @@ where
         self.transmit(packets_to_send);
     }
 
+    /// Handles an acknowledgement that a packet was received.
     fn handle_response(&mut self) {
         // TODO: implement a proper handling mechanism
         // currently, responses are just acknowledgements (`ProtocolResponse::Ack`) of requests,
@@ -219,13 +232,14 @@ where
         info!("response received");
     }
 
-    /// Transmits a packet to all other nodes.
+    /// Transmits a sequence of packets to all other nodes.
     fn transmit(&mut self, packets: Vec<Packet<T::Message>>) {
         packets
             .into_iter()
             .for_each(|packet| self.send_individual_packet(packet));
     }
 
+    /// Sends a single packet to all other nodes.
     fn send_individual_packet(&mut self, packet: Packet<T::Message>) {
         info!("sending packet");
         debug!("packet contents: {packet:#?}");
@@ -252,30 +266,43 @@ where
         }
     }
 
+    /// Checks the stored value for the given key.
+    /// Used only for GET requests.
     pub fn check_output(&mut self, key: String) -> Option<String> {
         unsafe { self.protocol.check_output(key) }
     }
 
+    /// Handle a timeout.
+    /// This occurs when a follower node has not received a heartbeat from
+    /// a leader for some time.
     pub fn timeout(&mut self) {
         info!("getting timed out (if follower)");
         let packets_to_send = unsafe { self.protocol.handle_timeout() };
         self.transmit(packets_to_send);
     }
+
+    /// Sends a heartbeat.
+    /// The leader node must send heartbeats to follower nodes periodicially.
     pub fn send_heartbeat(&mut self) {
         info!("sending heartbeat (if leader)");
         let packets_to_send = unsafe { self.protocol.send_heartbeat() };
         self.transmit(packets_to_send);
     }
 
+    /// Checks if a node is the leader node.
     pub fn is_leader(&mut self) -> bool {
         unsafe { self.protocol.is_leader() }
     }
 
+    /// Writes the node state to disk.
+    /// This is necessary for crash tolerance.
     pub fn persist_node_state(&self) {
         let persistent_state = unsafe { self.protocol.get_persistent_state() };
         persistent_state.to_disk(&self.node_state_path);
     }
 
+    /// Loads the node state from disk.
+    /// This is necessary for crash tolerance.
     pub fn load_node_state(&mut self) {
         if let Ok(true) = fs::exists(&self.node_state_path) {
             unsafe {

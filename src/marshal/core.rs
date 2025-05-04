@@ -1,8 +1,10 @@
 use lean_sys::*;
 
+/// This module contains a grab-bag of misc helper functions.
+
 pub const VOID_PTR_SIZE: usize = size_of::<*mut std::ffi::c_void>();
 
-// Decrement the reference count, conditionally.
+/// Decrement the reference count, conditionally.
 pub unsafe fn lean_dec_cond(o: *mut lean_object, dec_refcount: bool) {
     match dec_refcount {
         false => (),
@@ -17,14 +19,15 @@ pub fn bool_to_u8(b: bool) -> u8 {
     }
 }
 
+/// Converts a Lean Option to Rust.
+/// Lean options are represented differently, depending on if they are None or Some.
+/// - None: lean_box(0), which is a scalar
+/// - Some x: a constructor with 1 parameter, where that parameter is x
 pub unsafe fn lean_option_to_rust<T>(
     opt: *mut lean_object,
     convert: unsafe fn(*mut lean_object) -> T,
     dec_refcount: bool,
 ) -> Option<T> {
-    // note: the runtime representation of lean4 options are:
-    // - none: lean_box(0), which is a scalar
-    // - some x: a constructor with 1 parameter, where that parameter is probably x
     let res = match lean_is_scalar(opt) {
         true => None,
         false => {

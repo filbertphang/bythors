@@ -11,10 +11,11 @@ pub enum Response {
     NotLeader,
 }
 
+/// Attempts to parse a request string.
+/// Request string format:
+/// <Client ID> <Request ID> <Command> <Arg 1> <Arg 2>
+///     0            1           2        3       4
 pub fn parse_request(raw_input: String) -> Option<Request> {
-    // input format:
-    // <client id> <request id> <cmd> <arg1> <arg2>
-    //     0            1         2     3      4
     let res: Vec<&str> = raw_input.split(' ').collect();
 
     if res.len() < 4 {
@@ -34,6 +35,7 @@ pub fn parse_request(raw_input: String) -> Option<Request> {
     }
 }
 
+/// Formats a response as a string.
 pub fn pack_response(res: Response) -> String {
     let res_str = match res {
         Response::GetR { key, val } => {

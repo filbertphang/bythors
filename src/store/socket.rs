@@ -1,5 +1,7 @@
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
+/// Helper functions to read and write request strings to a socket.
+
 pub async fn read_bytes_from_socket_to_str<T>(stream: &mut T, len: usize) -> String
 where
     T: AsyncReadExt + Unpin,

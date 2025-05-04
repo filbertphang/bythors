@@ -2,7 +2,9 @@ use crate::marshal::string::lean_string_to_rust;
 use lean_sys::*;
 use log::debug;
 
-/// For crate-internal debugging only. Explains what this lean object is.
+/// Utilities for crate-internal debugging.
+
+/// Explains what this lean object is.
 #[allow(dead_code)]
 pub unsafe fn what_is_this(s: &str, o: *mut lean_object) {
     debug!(

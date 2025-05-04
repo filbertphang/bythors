@@ -1,5 +1,7 @@
 use lean_sys::{lean_obj_arg, lean_obj_res};
 
+/// Binds to the fat static library RaftConcreteFat.
+/// Refer to lib/lakefile.lean for more information.
 #[link(name = "RaftConcreteFat", kind = "static")]
 extern "C" {
     pub fn initialize_RaftConcrete(builtin: u8, world: lean_obj_arg) -> lean_obj_res;

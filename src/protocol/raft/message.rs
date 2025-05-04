@@ -8,6 +8,7 @@ use crate::protocol::Message;
 
 use lean_sys::*;
 
+/// Rust representation of the RaftMessage struct in lib/Raft.lean.
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub enum RaftMessage {
     RequestVote {

@@ -11,6 +11,8 @@ use crate::protocol::{Message, Packet, Protocol};
 use lean_sys::*;
 use log::{debug, info};
 
+/// A shim for the Raft consensus protocol in Rust.
+/// This shim communicates with the actual protocol implementation in Lean (lib/Raft.lean).
 #[derive(Debug)]
 pub struct Raft {
     node_state: *mut lean_object,
@@ -27,6 +29,7 @@ impl Protocol for Raft {
         lean_extern::initialize_RaftConcrete(builtin, world)
     }
 
+    /// Creates an instance of the protocol.
     unsafe fn create(node_list: Vec<String>, address: String, leader: String) -> Self {
         let is_first_leader = address == leader;
 
@@ -49,7 +52,7 @@ impl Protocol for Raft {
         }
     }
 
-    // TODO: revisit if this is necessary
+    /// Starts the protocol, by triggering a timeout on the first leader.
     unsafe fn start(&mut self) -> Vec<RaftPacket> {
         if self.is_first_leader {
             debug!("start: starting protocol");
@@ -126,7 +129,8 @@ impl Protocol for Raft {
         packets_to_send
     }
 
-    // this function basically queries the lean hashmap
+    /// Checks if consensus has been reached for a value associated with a key.
+    /// Only used for GET requests.
     unsafe fn check_output(&mut self, key: String) -> Option<String> {
         let key_lean = rust_string_to_lean(key.clone());
         lean_inc(self.node_state);
@@ -173,6 +177,7 @@ impl Protocol for Raft {
     }
 }
 
+/// Helper function to convert a (new_state, packets_to_send) tuple from Lean to Rust.
 unsafe fn deconstruct_state_and_packets(
     state_and_results_and_packets: *mut lean_object,
 ) -> (*mut lean_object, Vec<RaftPacket>) {

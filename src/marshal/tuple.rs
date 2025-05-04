@@ -1,6 +1,9 @@
 use crate::marshal::core::lean_dec_cond;
 use lean_sys::*;
 
+/// Lean Prods are represented as a constructor with 2 parameters:
+/// the head, and the tail.
+
 pub unsafe fn rust_tuple_to_lean<T>(
     tup: (T, T),
     convert: unsafe fn(T) -> *mut lean_object,
